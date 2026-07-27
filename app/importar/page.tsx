@@ -7,6 +7,8 @@ import {
   ArrowLeft,
   ShieldCheck,
   ImageUp,
+  Camera,
+  Images,
   Loader2,
   Sparkles,
   TriangleAlert,
@@ -124,7 +126,8 @@ function applyScanResult(data: ScanResult): FormState {
 
 export default function ImportarPage() {
   const router = useRouter()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [status, setStatus] = useState<ScanStatus>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -187,7 +190,8 @@ export default function ImportarPage() {
     setStatus('idle')
     setErrorMessage(null)
     setForm(emptyForm)
-    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
+    if (galleryInputRef.current) galleryInputRef.current.value = ''
   }
 
   function publish() {
@@ -258,28 +262,54 @@ export default function ImportarPage() {
         </div>
 
         <input
-          ref={fileInputRef}
+          ref={cameraInputRef}
           type="file"
           accept="image/*"
           capture="environment"
           onChange={handleFileChange}
           className="hidden"
         />
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          className="hidden"
+        />
 
         {!imagePreview ? (
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-card p-10 text-center transition-colors hover:border-primary/40 hover:bg-primary/5"
-          >
+          <div className="flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-border bg-card p-8 text-center">
             <span className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
               <ImageUp className="size-7" />
             </span>
-            <span className="text-sm font-semibold text-foreground">
-              Sube una foto o captura de pantalla
-            </span>
-            <span className="text-xs text-muted-foreground">PNG o JPG desde tu dispositivo</span>
-          </button>
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Sube una foto o captura de pantalla
+              </p>
+              <p className="text-xs text-muted-foreground">PNG o JPG desde tu dispositivo</p>
+            </div>
+            <div className="grid w-full gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="gap-1.5"
+                onClick={() => cameraInputRef.current?.click()}
+              >
+                <Camera className="size-4" />
+                Tomar foto
+              </Button>
+              <Button
+                type="button"
+                size="lg"
+                className="gap-1.5"
+                onClick={() => galleryInputRef.current?.click()}
+              >
+                <Images className="size-4" />
+                Subir de galería
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
             <img src={imagePreview} alt="Publicación importada" className="max-h-72 w-full object-cover" />
