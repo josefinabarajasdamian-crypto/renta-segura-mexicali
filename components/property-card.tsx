@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { BadgeCheck, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { Property } from '@/lib/mockStorage'
+import type { Property } from '@/lib/store'
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (

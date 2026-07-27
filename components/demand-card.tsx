@@ -1,6 +1,6 @@
 import { Wallet, MapPin, Users, UserRound, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { Demand } from '@/lib/mockStorage'
+import { formatRelativeTime, type Demand } from '@/lib/store'
 
 function initials(name: string) {
   return name
@@ -20,7 +20,7 @@ export function DemandCard({ demand, isAgent }: { demand: Demand; isAgent?: bool
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">{demand.name}</p>
-          <p className="text-xs text-muted-foreground">{demand.postedAt}</p>
+          <p className="text-xs text-muted-foreground">{formatRelativeTime(demand.createdAt)}</p>
         </div>
       </div>
 
