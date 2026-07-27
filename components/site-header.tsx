@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { ShieldCheck, Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false)
@@ -32,18 +33,21 @@ export function SiteHeader() {
           <Button size="lg" nativeButton={false} render={<a href="/dashboard" />}>
             Entrar
           </Button>
+          <ThemeToggle />
         </nav>
 
-        <Button
-          variant="outline"
-          size="icon-lg"
-          className="md:hidden"
-          aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? <X className="size-5" /> : <Menu className="size-5" />}
-        </Button>
+        <div className="flex items-center gap-2 md:hidden">
+          <ThemeToggle />
+          <Button
+            variant="outline"
+            size="icon-lg"
+            aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? <X className="size-5" /> : <Menu className="size-5" />}
+          </Button>
+        </div>
       </div>
 
       {open && (

@@ -34,6 +34,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={`${jakarta.variable} ${inter.variable} bg-background`}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{if(localStorage.getItem('theme')==='dark'){document.documentElement.classList.add('dark')}}catch(e){}})();",
+          }}
+        />
+      </head>
       <body className="font-sans antialiased">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
