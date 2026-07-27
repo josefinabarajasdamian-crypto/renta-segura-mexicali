@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Plus, Menu, X, Target, FileText } from 'lucide-react'
+import { Plus, Menu, X, Target, FileText, ScanLine } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   useProperties,
@@ -102,16 +102,28 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
-            <Button
-              size="lg"
-              className="gap-1.5"
-              nativeButton={false}
-              render={<Link href="/propiedad/nueva" />}
-            >
-              <Plus className="size-4" />
-              <span className="hidden sm:inline">Publicar Nueva Propiedad</span>
-              <span className="sm:hidden">Publicar</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="lg"
+                className="gap-1.5"
+                nativeButton={false}
+                render={<Link href="/importar" />}
+              >
+                <ScanLine className="size-4" />
+                <span className="hidden sm:inline">Importar de Facebook</span>
+              </Button>
+              <Button
+                size="lg"
+                className="gap-1.5"
+                nativeButton={false}
+                render={<Link href="/propiedad/nueva" />}
+              >
+                <Plus className="size-4" />
+                <span className="hidden sm:inline">Publicar Nueva Propiedad</span>
+                <span className="sm:hidden">Publicar</span>
+              </Button>
+            </div>
           </div>
         </header>
 
