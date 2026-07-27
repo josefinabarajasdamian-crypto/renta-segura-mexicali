@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Plus, Menu, X, Target, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { properties, demands } from '@/lib/data'
@@ -78,7 +79,7 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
-            <Button size="lg" className="gap-1.5">
+            <Button size="lg" className="gap-1.5" nativeButton={false} render={<Link href="/propiedad/nueva" />}>
               <Plus className="size-4" />
               <span className="hidden sm:inline">Publicar Nueva Propiedad</span>
               <span className="sm:hidden">Publicar</span>
