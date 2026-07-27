@@ -25,6 +25,7 @@ export interface Property {
   coolingUnits?: string
   electricityRate?: string
   petsPolicy?: string
+  description?: string
 }
 
 export interface Demand {
