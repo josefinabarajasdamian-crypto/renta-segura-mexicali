@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Menu, X, Target } from 'lucide-react'
+import { Plus, Menu, X, Target, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { properties, demands } from '@/lib/data'
 import { DashboardSidebar } from '@/components/dashboard/dashboard-sidebar'
@@ -9,6 +9,7 @@ import { StatCards } from '@/components/dashboard/stat-cards'
 import { PropertyManageRow } from '@/components/dashboard/property-manage-row'
 import { ProspectCard } from '@/components/dashboard/prospect-card'
 import { VerificationTool } from '@/components/dashboard/verification-tool'
+import { ContractTemplates } from '@/components/dashboard/contract-templates'
 
 const statusByProperty = ['Disponible', 'En Trato', 'Rentado'] as const
 
@@ -132,6 +133,22 @@ export default function DashboardPage() {
           {/* Verification */}
           <section id="verificar" className="scroll-mt-24">
             <VerificationTool />
+          </section>
+
+          {/* Contract templates */}
+          <section id="contratos" className="scroll-mt-24">
+            <div className="mb-1 flex items-center gap-2">
+              <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <FileText className="size-4" />
+              </span>
+              <h2 className="font-display text-base font-bold text-foreground sm:text-lg">
+                Plantillas de Contratos
+              </h2>
+            </div>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Formatos listos para usar en tus arrendamientos, revisados y actualizados.
+            </p>
+            <ContractTemplates />
           </section>
         </main>
       </div>
