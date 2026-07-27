@@ -1,34 +1,34 @@
 import { Home, Users, FileCheck, Star } from 'lucide-react'
 
-const stats = [
-  {
-    label: 'Propiedades Activas',
-    value: '3',
-    icon: Home,
-    hint: 'En el directorio verificado',
-  },
-  {
-    label: 'Inquilinos Interesados',
-    value: '12',
-    icon: Users,
-    hint: '+4 esta semana',
-  },
-  {
-    label: 'Contratos Vigentes',
-    value: '2',
-    icon: FileCheck,
-    hint: 'Al corriente de pagos',
-  },
-  {
-    label: 'Score de Reputación',
-    value: '4.9',
-    icon: Star,
-    hint: '100% puntuales',
-    highlight: true,
-  },
-]
+export function StatCards({ propertiesCount = 3 }: { propertiesCount?: number }) {
+  const stats = [
+    {
+      label: 'Propiedades Activas',
+      value: String(propertiesCount),
+      icon: Home,
+      hint: 'En el directorio verificado',
+    },
+    {
+      label: 'Inquilinos Interesados',
+      value: '12',
+      icon: Users,
+      hint: '+4 esta semana',
+    },
+    {
+      label: 'Contratos Vigentes',
+      value: '2',
+      icon: FileCheck,
+      hint: 'Al corriente de pagos',
+    },
+    {
+      label: 'Score de Reputación',
+      value: '4.9',
+      icon: Star,
+      hint: '100% puntuales',
+      highlight: true,
+    },
+  ]
 
-export function StatCards() {
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
       {stats.map((stat) => {

@@ -4,7 +4,15 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Plus, Menu, X, Target, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { properties, demands } from '@/lib/data'
+import {
+  useProperties,
+  useDemands,
+  updatePropertyStatus,
+  deleteProperty,
+  type Property,
+  type PropertyStatus,
+} from '@/lib/mockStorage'
+import { Toast, useToast } from '@/components/ui/toast'
 import { DashboardSidebar } from '@/components/dashboard/dashboard-sidebar'
 import { StatCards } from '@/components/dashboard/stat-cards'
 import { PropertyManageRow } from '@/components/dashboard/property-manage-row'
@@ -12,17 +20,32 @@ import { ProspectCard } from '@/components/dashboard/prospect-card'
 import { VerificationTool } from '@/components/dashboard/verification-tool'
 import { ContractTemplates } from '@/components/dashboard/contract-templates'
 
-const statusByProperty = ['Disponible', 'En Trato', 'Rentado'] as const
-
 export default function DashboardPage() {
   const [active, setActive] = useState('resumen')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const properties = useProperties()
+  const demands = useDemands()
+  const toast = useToast()
 
   function navigate(id: string) {
     setActive(id)
     setSidebarOpen(false)
     const el = document.getElementById(id)
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  function handleStatusChange(id: string, status: PropertyStatus) {
+    updatePropertyStatus(id, status)
+    toast.show(`Estatus actualizado a "${status}"`)
+  }
+
+  function handleDelete(id: string) {
+    deleteProperty(id)
+    toast.show('Propiedad eliminada')
+  }
+
+  function handleCopyLink(property: Property) {
+    toast.show('¡Enlace copiado! Pégalo en tu publicación de Facebook')
   }
 
   return (
@@ -79,7 +102,12 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
-            <Button size="lg" className="gap-1.5" nativeButton={false} render={<Link href="/propiedad/nueva" />}>
+            <Button
+              size="lg"
+              className="gap-1.5"
+              nativeButton={false}
+              render={<Link href="/propiedad/nueva" />}
+            >
               <Plus className="size-4" />
               <span className="hidden sm:inline">Publicar Nueva Propiedad</span>
               <span className="sm:hidden">Publicar</span>
@@ -90,7 +118,7 @@ export default function DashboardPage() {
         <main className="mx-auto max-w-5xl space-y-8 px-4 py-6 sm:px-6">
           {/* Stats */}
           <section id="resumen" className="scroll-mt-24">
-            <StatCards />
+            <StatCards propertiesCount={properties.length} />
           </section>
 
           {/* My properties */}
@@ -99,17 +127,29 @@ export default function DashboardPage() {
               <h2 className="font-display text-base font-bold text-foreground sm:text-lg">
                 Mis Propiedades
               </h2>
-              <span className="text-xs text-muted-foreground">3 publicadas</span>
+              <span className="text-xs text-muted-foreground">
+                {properties.length} publicadas
+              </span>
             </div>
-            <div className="space-y-3">
-              {properties.map((property, i) => (
-                <PropertyManageRow
-                  key={property.id}
-                  property={property}
-                  initialStatus={statusByProperty[i] ?? 'Disponible'}
-                />
-              ))}
-            </div>
+            {properties.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Aún no tienes propiedades publicadas.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {properties.map((property) => (
+                  <PropertyManageRow
+                    key={property.id}
+                    property={property}
+                    onStatusChange={handleStatusChange}
+                    onDelete={handleDelete}
+                    onCopyLink={handleCopyLink}
+                  />
+                ))}
+              </div>
+            )}
           </section>
 
           {/* Prospects matchmaking */}
@@ -126,8 +166,9 @@ export default function DashboardPage() {
               Personas buscando renta que coinciden con tus propiedades hoy en Mexicali.
             </p>
             <div className="grid gap-3 md:grid-cols-2">
-              <ProspectCard demand={demands[0]} match="95% match" />
-              <ProspectCard demand={demands[2]} match="88% match" />
+              {demands.slice(0, 2).map((demand, i) => (
+                <ProspectCard key={demand.id} demand={demand} match={i === 0 ? '95% match' : '88% match'} />
+              ))}
             </div>
           </section>
 
@@ -153,6 +194,8 @@ export default function DashboardPage() {
           </section>
         </main>
       </div>
+
+      <Toast message={toast.message} />
     </div>
   )
 }

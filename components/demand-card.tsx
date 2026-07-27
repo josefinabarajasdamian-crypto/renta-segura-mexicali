@@ -1,6 +1,6 @@
 import { Wallet, MapPin, Users, UserRound, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { Demand } from '@/lib/data'
+import type { Demand } from '@/lib/mockStorage'
 
 function initials(name: string) {
   return name

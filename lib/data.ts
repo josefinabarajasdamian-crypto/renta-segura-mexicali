@@ -13,57 +13,6 @@ export const mexicaliZones = [
   'Xochimilco',
 ]
 
-export type Property = {
-  id: string
-  image: string
-  price: number
-  title: string
-  location: string
-  tags: string[]
-  whatsapp: string
-}
-
-export type Demand = {
-  id: string
-  name: string
-  anonymous?: boolean
-  message: string
-  budget: string
-  zone: string
-  tenants: string
-  postedAt: string
-}
-
-export const properties: Property[] = [
-  {
-    id: 'p1',
-    image: '/images/depto-uabc.png',
-    price: 6500,
-    title: 'Departamento 2 Recámaras a 5 min de UABC Central',
-    location: 'Fracc. Villafontana, cerca de UABC',
-    tags: ['2 Minisplits', 'Servicios Incluidos', 'Acepta Mascotas'],
-    whatsapp: '526861234567',
-  },
-  {
-    id: 'p2',
-    image: '/images/casa-prohogar.png',
-    price: 8900,
-    title: 'Casa 3 Recámaras con cochera en Prohogar',
-    location: 'Col. Pro Hogar, Mexicali',
-    tags: ['3 Recámaras', 'Cochera Techada', 'Patio Amplio'],
-    whatsapp: '526862345678',
-  },
-  {
-    id: 'p3',
-    image: '/images/studio-palaco.png',
-    price: 4800,
-    title: 'Studio amueblado ideal para 1 persona en Palaco',
-    location: 'Zona Palaco, Mexicali',
-    tags: ['Amueblado', '1 Minisplit', 'Wifi Incluido'],
-    whatsapp: '526863456789',
-  },
-]
-
 export type PropertyDetail = {
   id: string
   title: string
@@ -185,37 +134,3 @@ export const propertyDetails: Record<string, PropertyDetail> = {
     },
   },
 }
-
-export const demands: Demand[] = [
-  {
-    id: 'd1',
-    name: 'Carlos M.',
-    message:
-      'Busco departamento de 4,000 a 6,000 por la Zona Industrial. Somos pareja sin niños, ambos trabajamos y tenemos comprobante de ingresos.',
-    budget: '$6k max',
-    zone: 'Industrial',
-    tenants: '2',
-    postedAt: 'Hace 2 horas',
-  },
-  {
-    id: 'd2',
-    name: 'Usuario Anónimo',
-    anonymous: true,
-    message:
-      'Estudiante de UABC busca cuarto o studio cerca del campus por menos de $3,500. Tranquilo, sin fiestas, pago puntual cada mes.',
-    budget: '$3.5k max',
-    zone: 'UABC',
-    tenants: '1',
-    postedAt: 'Hace 5 horas',
-  },
-  {
-    id: 'd3',
-    name: 'Familia Rosales',
-    message:
-      'Necesitamos casa de 3 recámaras con patio en Prohogar o Nueva. Presupuesto hasta $9,000, tenemos un perro pequeño. Buscamos contrato de un año.',
-    budget: '$9k max',
-    zone: 'Prohogar',
-    tenants: '4',
-    postedAt: 'Ayer',
-  },
-]
