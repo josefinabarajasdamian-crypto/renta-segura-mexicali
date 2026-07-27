@@ -26,10 +26,10 @@ export function SiteHeader() {
           <Button variant="ghost" size="lg" nativeButton={false} render={<a href="#muro" />}>
             Publicar mi Búsqueda
           </Button>
-          <Button variant="ghost" size="lg" nativeButton={false} render={<a href="#directorio" />}>
+          <Button variant="ghost" size="lg" nativeButton={false} render={<a href="/dashboard" />}>
             Soy Propietario/Agente
           </Button>
-          <Button size="lg" nativeButton={false} render={<a href="#entrar" />}>
+          <Button size="lg" nativeButton={false} render={<a href="/dashboard" />}>
             Entrar
           </Button>
         </nav>
@@ -63,11 +63,11 @@ export function SiteHeader() {
               size="lg"
               className="justify-start"
               nativeButton={false}
-              render={<a href="#directorio" />}
+              render={<a href="/dashboard" />}
             >
               Soy Propietario/Agente
             </Button>
-            <Button size="lg" nativeButton={false} render={<a href="#entrar" />}>
+            <Button size="lg" nativeButton={false} render={<a href="/dashboard" />}>
               Entrar
             </Button>
           </div>
