@@ -13,13 +13,14 @@ export function PublishSuccessModal({
   onClose: () => void
 }) {
   const [copied, setCopied] = useState(false)
-  const fullLink = `rentasegura.mx/p/${shortLink}`
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const fullLink = `${origin}/propiedad/${shortLink}`
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(
-    `¡Mira esta propiedad en Renta Segura Mexicali! https://${fullLink}`,
+    `¡Mira esta propiedad en Renta Segura Mexicali! ${fullLink}`,
   )}`
 
   function copyLink() {
-    navigator.clipboard?.writeText(`https://${fullLink}`).catch(() => {})
+    navigator.clipboard?.writeText(fullLink).catch(() => {})
     setCopied(true)
     setTimeout(() => setCopied(false), 1800)
   }
