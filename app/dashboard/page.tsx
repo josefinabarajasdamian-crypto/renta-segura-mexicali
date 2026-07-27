@@ -13,6 +13,7 @@ import {
   type PropertyStatus,
 } from '@/lib/mockStorage'
 import { Toast, useToast } from '@/components/ui/toast'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { DashboardSidebar } from '@/components/dashboard/dashboard-sidebar'
 import { StatCards } from '@/components/dashboard/stat-cards'
 import { PropertyManageRow } from '@/components/dashboard/property-manage-row'
@@ -103,6 +104,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <ThemeToggle />
               <Button
                 variant="outline"
                 size="lg"
