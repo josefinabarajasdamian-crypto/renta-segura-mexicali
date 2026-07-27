@@ -1,37 +1,37 @@
 'use client'
 
 import { useState } from 'react'
-import { Link2, Pencil, Receipt, Check, ChevronDown } from 'lucide-react'
+import { Link2, Pencil, Receipt, Check, ChevronDown, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { Property } from '@/lib/data'
+import type { Property, PropertyStatus } from '@/lib/mockStorage'
 
-type Status = 'Disponible' | 'En Trato' | 'Rentado'
-
-const statusStyles: Record<Status, string> = {
+const statusStyles: Record<PropertyStatus, string> = {
   Disponible: 'bg-accent/15 text-accent',
   'En Trato': 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
   Rentado: 'bg-muted text-muted-foreground',
 }
 
-const statuses: Status[] = ['Disponible', 'En Trato', 'Rentado']
+const statuses: PropertyStatus[] = ['Disponible', 'En Trato', 'Rentado']
 
 export function PropertyManageRow({
   property,
-  initialStatus,
+  onStatusChange,
+  onDelete,
+  onCopyLink,
 }: {
   property: Property
-  initialStatus: Status
+  onStatusChange: (id: string, status: PropertyStatus) => void
+  onDelete: (id: string) => void
+  onCopyLink: (property: Property) => void
 }) {
-  const [status, setStatus] = useState<Status>(initialStatus)
   const [open, setOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   function copyLink() {
     const url = `https://rentasegura.mx/propiedad/${property.id}`
     navigator.clipboard?.writeText(url).catch(() => {})
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1800)
+    onCopyLink(property)
   }
 
   return (
@@ -61,11 +61,11 @@ export function PropertyManageRow({
           aria-expanded={open}
           className={cn(
             'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80',
-            statusStyles[status],
+            statusStyles[property.status],
           )}
         >
           <span className="size-1.5 rounded-full bg-current" />
-          {status}
+          {property.status}
           <ChevronDown className="size-3.5" />
         </button>
         {open && (
@@ -80,15 +80,15 @@ export function PropertyManageRow({
                   <button
                     type="button"
                     role="option"
-                    aria-selected={s === status}
+                    aria-selected={s === property.status}
                     onClick={() => {
-                      setStatus(s)
+                      onStatusChange(property.id, s)
                       setOpen(false)
                     }}
                     className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm hover:bg-muted"
                   >
                     {s}
-                    {s === status && <Check className="size-4 text-primary" />}
+                    {s === property.status && <Check className="size-4 text-primary" />}
                   </button>
                 </li>
               ))}
@@ -97,20 +97,48 @@ export function PropertyManageRow({
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2 sm:justify-end">
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={copyLink}>
-          {copied ? <Check className="size-3.5 text-accent" /> : <Link2 className="size-3.5" />}
-          {copied ? 'Copiado' : 'Copiar Enlace'}
-        </Button>
-        <Button variant="outline" size="sm" className="gap-1.5">
-          <Pencil className="size-3.5" />
-          Editar
-        </Button>
-        <Button variant="ghost" size="sm" className="gap-1.5">
-          <Receipt className="size-3.5" />
-          Ver Recibos
-        </Button>
-      </div>
+      {confirmingDelete ? (
+        <div className="flex items-center gap-2 sm:justify-end">
+          <span className="text-xs font-medium text-muted-foreground">¿Eliminar?</span>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => {
+              onDelete(property.id)
+              setConfirmingDelete(false)
+            }}
+          >
+            Sí, eliminar
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(false)}>
+            Cancelar
+          </Button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={copyLink}>
+            <Link2 className="size-3.5" />
+            Copiar Enlace
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <Pencil className="size-3.5" />
+            Editar
+          </Button>
+          <Button variant="ghost" size="sm" className="gap-1.5">
+            <Receipt className="size-3.5" />
+            Ver Recibos
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Eliminar propiedad"
+            onClick={() => setConfirmingDelete(true)}
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

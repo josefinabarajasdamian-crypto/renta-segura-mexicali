@@ -5,7 +5,9 @@ import { LayoutGrid, MessagesSquare, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PropertyCard } from '@/components/property-card'
 import { DemandCard } from '@/components/demand-card'
-import { properties, demands } from '@/lib/data'
+import { DemandFormModal } from '@/components/demand-form-modal'
+import { Toast, useToast } from '@/components/ui/toast'
+import { useProperties, useDemands } from '@/lib/mockStorage'
 import { cn } from '@/lib/utils'
 
 type View = 'directorio' | 'muro'
@@ -14,6 +16,10 @@ export function ListingsSection() {
   const [view, setView] = useState<View>('directorio')
   // Simula si el usuario que mira es un agente/propietario.
   const [isAgent, setIsAgent] = useState(false)
+  const [showDemandForm, setShowDemandForm] = useState(false)
+  const properties = useProperties()
+  const demands = useDemands()
+  const toast = useToast()
 
   return (
     <section id="directorio" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-14 sm:px-6">
@@ -81,7 +87,7 @@ export function ListingsSection() {
                 Publica lo que necesitas y deja que los propietarios te encuentren.
               </p>
             </div>
-            <Button size="lg" className="gap-2">
+            <Button size="lg" className="gap-2" onClick={() => setShowDemandForm(true)}>
               <Plus className="size-4" />
               Publicar mi necesidad
             </Button>
@@ -116,6 +122,18 @@ export function ListingsSection() {
           </div>
         </div>
       )}
+
+      {showDemandForm && (
+        <DemandFormModal
+          onClose={() => setShowDemandForm(false)}
+          onPublished={() => {
+            setShowDemandForm(false)
+            toast.show('¡Tu búsqueda ya está en el Muro de Demandas!')
+          }}
+        />
+      )}
+
+      <Toast message={toast.message} />
     </section>
   )
 }

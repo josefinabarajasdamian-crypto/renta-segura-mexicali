@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { PartyPopper, Link2, Check, X } from 'lucide-react'
+import { PartyPopper, Link2, Check, X, LayoutDashboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WhatsAppIcon } from '@/components/whatsapp-icon'
 
@@ -73,6 +73,11 @@ export function PublishSuccessModal({
             Compartir en WhatsApp
           </Button>
         </div>
+
+        <Button variant="ghost" size="lg" className="mt-2 w-full gap-1.5" onClick={onClose}>
+          <LayoutDashboard className="size-4" />
+          Ir a mi Dashboard
+        </Button>
       </div>
     </div>
   )

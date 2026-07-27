@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ArrowLeft, ArrowRight, ShieldCheck, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WizardProgress } from '@/components/property-wizard/wizard-progress'
@@ -11,8 +12,29 @@ import { StepRules } from '@/components/property-wizard/step-rules'
 import { StepPreview } from '@/components/property-wizard/step-preview'
 import { PublishSuccessModal } from '@/components/property-wizard/publish-success-modal'
 import { defaultFormData, wizardSteps, type PropertyFormData } from '@/components/property-wizard/types'
+import { saveProperty } from '@/lib/mockStorage'
+
+const IMAGE_BY_TYPE: Record<string, string> = {
+  Departamento: '/images/depto-uabc.png',
+  Casa: '/images/casa-prohogar.png',
+  Cuarto: '/images/studio-palaco.png',
+  Estudio: '/images/studio-palaco.png',
+}
+
+const OWNER_WHATSAPP = '526861112233'
+
+function buildTags(data: PropertyFormData): string[] {
+  const tags: string[] = []
+  if (data.coolingType && data.coolingType !== 'Ninguno') tags.push(data.coolingType)
+  if (data.bedrooms > 0) tags.push(`${data.bedrooms} Recámaras`)
+  if (data.servicesIncluded.water) tags.push('Agua Incluida')
+  if (data.servicesIncluded.internet) tags.push('Internet Incluido')
+  if (data.petsPolicy !== 'No acepta') tags.push('Acepta Mascotas')
+  return tags.slice(0, 4)
+}
 
 export default function NuevaPropiedadPage() {
+  const router = useRouter()
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState<PropertyFormData>(defaultFormData)
   const [shortLink, setShortLink] = useState<string | null>(null)
@@ -33,8 +55,30 @@ export default function NuevaPropiedadPage() {
   }
 
   function publish() {
-    const id = Math.random().toString(36).slice(2, 8)
-    setShortLink(id)
+    const created = saveProperty({
+      image: IMAGE_BY_TYPE[formData.propertyType] ?? '/images/depto-uabc.png',
+      price: Number(formData.rentPrice) || 0,
+      title: `${formData.propertyType || 'Propiedad'} en ${formData.zone || 'Mexicali'}`,
+      location: `${formData.zone || 'Mexicali'}, Mexicali`,
+      zone: formData.zone,
+      tags: buildTags(formData),
+      whatsapp: OWNER_WHATSAPP,
+      propertyType: formData.propertyType,
+      deposit: Number(formData.deposit) || undefined,
+      contractDuration: formData.contractDuration,
+      bedrooms: formData.bedrooms,
+      bathrooms: formData.bathrooms,
+      parking: formData.parking,
+      coolingType: formData.coolingType,
+      coolingUnits: formData.coolingUnits,
+      electricityRate: formData.electricityRate,
+      petsPolicy: formData.petsPolicy,
+    })
+    setShortLink(created.id)
+  }
+
+  function goToDashboard() {
+    router.push('/dashboard')
   }
 
   return (
@@ -100,9 +144,7 @@ export default function NuevaPropiedadPage() {
         </div>
       </div>
 
-      {shortLink && (
-        <PublishSuccessModal shortLink={shortLink} onClose={() => setShortLink(null)} />
-      )}
+      {shortLink && <PublishSuccessModal shortLink={shortLink} onClose={goToDashboard} />}
     </div>
   )
 }
