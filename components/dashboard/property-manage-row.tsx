@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Link2, Pencil, Receipt, Check, ChevronDown, Trash2 } from 'lucide-react'
+import { Link2, Pencil, Receipt, Check, ChevronDown, Trash2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { Property, PropertyStatus } from '@/lib/mockStorage'
+import type { Property, PropertyStatus } from '@/lib/store'
 
 const statusStyles: Record<PropertyStatus, string> = {
   Disponible: 'bg-accent/15 text-accent',
@@ -21,17 +21,39 @@ export function PropertyManageRow({
   onCopyLink,
 }: {
   property: Property
-  onStatusChange: (id: string, status: PropertyStatus) => void
-  onDelete: (id: string) => void
+  onStatusChange: (id: string, status: PropertyStatus) => Promise<void>
+  onDelete: (id: string) => Promise<void>
   onCopyLink: (property: Property) => void
 }) {
   const [open, setOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
 
   function copyLink() {
     const url = `${window.location.origin}/propiedad/${property.id}`
     navigator.clipboard?.writeText(url).catch(() => {})
     onCopyLink(property)
+  }
+
+  async function confirmDelete() {
+    setDeleting(true)
+    try {
+      await onDelete(property.id)
+    } finally {
+      setDeleting(false)
+      setConfirmingDelete(false)
+    }
+  }
+
+  async function changeStatus(s: PropertyStatus) {
+    setOpen(false)
+    setUpdatingStatus(true)
+    try {
+      await onStatusChange(property.id, s)
+    } finally {
+      setUpdatingStatus(false)
+    }
   }
 
   return (
@@ -57,14 +79,19 @@ export function PropertyManageRow({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
+          disabled={updatingStatus}
           aria-haspopup="listbox"
           aria-expanded={open}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80',
+            'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-60',
             statusStyles[property.status],
           )}
         >
-          <span className="size-1.5 rounded-full bg-current" />
+          {updatingStatus ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <span className="size-1.5 rounded-full bg-current" />
+          )}
           {property.status}
           <ChevronDown className="size-3.5" />
         </button>
@@ -81,10 +108,7 @@ export function PropertyManageRow({
                     type="button"
                     role="option"
                     aria-selected={s === property.status}
-                    onClick={() => {
-                      onStatusChange(property.id, s)
-                      setOpen(false)
-                    }}
+                    onClick={() => changeStatus(s)}
                     className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm hover:bg-muted"
                   >
                     {s}
@@ -100,17 +124,15 @@ export function PropertyManageRow({
       {confirmingDelete ? (
         <div className="flex items-center gap-2 sm:justify-end">
           <span className="text-xs font-medium text-muted-foreground">¿Eliminar?</span>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => {
-              onDelete(property.id)
-              setConfirmingDelete(false)
-            }}
-          >
-            Sí, eliminar
+          <Button variant="destructive" size="sm" onClick={confirmDelete} disabled={deleting}>
+            {deleting ? <Loader2 className="size-3.5 animate-spin" /> : 'Sí, eliminar'}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(false)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirmingDelete(false)}
+            disabled={deleting}
+          >
             Cancelar
           </Button>
         </div>

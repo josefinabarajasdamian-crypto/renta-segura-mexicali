@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRight, ShieldCheck, Rocket } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ShieldCheck, Rocket, Loader2, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WizardProgress } from '@/components/property-wizard/wizard-progress'
 import { StepLocation } from '@/components/property-wizard/step-location'
@@ -12,7 +12,7 @@ import { StepRules } from '@/components/property-wizard/step-rules'
 import { StepPreview } from '@/components/property-wizard/step-preview'
 import { PublishSuccessModal } from '@/components/property-wizard/publish-success-modal'
 import { defaultFormData, wizardSteps, type PropertyFormData } from '@/components/property-wizard/types'
-import { saveProperty } from '@/lib/mockStorage'
+import { saveProperty } from '@/lib/store'
 
 const IMAGE_BY_TYPE: Record<string, string> = {
   Departamento: '/images/depto-uabc.png',
@@ -38,6 +38,8 @@ export default function NuevaPropiedadPage() {
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState<PropertyFormData>(defaultFormData)
   const [shortLink, setShortLink] = useState<string | null>(null)
+  const [publishing, setPublishing] = useState(false)
+  const [publishError, setPublishError] = useState<string | null>(null)
 
   const totalSteps = wizardSteps.length
   const isLastStep = step === totalSteps
@@ -54,27 +56,35 @@ export default function NuevaPropiedadPage() {
     if (step > 1) setStep((s) => s - 1)
   }
 
-  function publish() {
-    const created = saveProperty({
-      image: IMAGE_BY_TYPE[formData.propertyType] ?? '/images/depto-uabc.png',
-      price: Number(formData.rentPrice) || 0,
-      title: `${formData.propertyType || 'Propiedad'} en ${formData.zone || 'Mexicali'}`,
-      location: `${formData.zone || 'Mexicali'}, Mexicali`,
-      zone: formData.zone,
-      tags: buildTags(formData),
-      whatsapp: OWNER_WHATSAPP,
-      propertyType: formData.propertyType,
-      deposit: Number(formData.deposit) || undefined,
-      contractDuration: formData.contractDuration,
-      bedrooms: formData.bedrooms,
-      bathrooms: formData.bathrooms,
-      parking: formData.parking,
-      coolingType: formData.coolingType,
-      coolingUnits: formData.coolingUnits,
-      electricityRate: formData.electricityRate,
-      petsPolicy: formData.petsPolicy,
-    })
-    setShortLink(created.id)
+  async function publish() {
+    setPublishing(true)
+    setPublishError(null)
+    try {
+      const created = await saveProperty({
+        image: IMAGE_BY_TYPE[formData.propertyType] ?? '/images/depto-uabc.png',
+        price: Number(formData.rentPrice) || 0,
+        title: `${formData.propertyType || 'Propiedad'} en ${formData.zone || 'Mexicali'}`,
+        location: `${formData.zone || 'Mexicali'}, Mexicali`,
+        zone: formData.zone,
+        tags: buildTags(formData),
+        whatsapp: OWNER_WHATSAPP,
+        propertyType: formData.propertyType,
+        deposit: Number(formData.deposit) || undefined,
+        contractDuration: formData.contractDuration,
+        bedrooms: formData.bedrooms,
+        bathrooms: formData.bathrooms,
+        parking: formData.parking,
+        coolingType: formData.coolingType,
+        coolingUnits: formData.coolingUnits,
+        electricityRate: formData.electricityRate,
+        petsPolicy: formData.petsPolicy,
+      })
+      setShortLink(created.id)
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : 'No se pudo publicar la propiedad.')
+    } finally {
+      setPublishing(false)
+    }
   }
 
   function goToDashboard() {
@@ -117,23 +127,35 @@ export default function NuevaPropiedadPage() {
 
       {/* Sticky mobile-first action bar */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur-md">
+        {publishError && (
+          <div className="mx-auto flex max-w-2xl items-start gap-2 px-4 pt-3 text-destructive sm:px-6">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+            <p className="text-xs font-medium leading-relaxed">{publishError}</p>
+          </div>
+        )}
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3 sm:px-6">
           <Button
             variant="outline"
             size="lg"
             className="gap-1.5"
             onClick={goBack}
-            disabled={step === 1}
+            disabled={step === 1 || publishing}
           >
             <ArrowLeft className="size-4" />
             Anterior
           </Button>
 
           {isLastStep ? (
-            <Button size="lg" className="flex-1 gap-1.5" onClick={publish}>
-              <Rocket className="size-4" />
-              <span className="hidden sm:inline">Publicar y Obtener Enlace para Facebook</span>
-              <span className="sm:hidden">Publicar y Obtener Enlace</span>
+            <Button size="lg" className="flex-1 gap-1.5" onClick={publish} disabled={publishing}>
+              {publishing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Rocket className="size-4" />
+              )}
+              <span className="hidden sm:inline">
+                {publishing ? 'Publicando...' : 'Publicar y Obtener Enlace para Facebook'}
+              </span>
+              <span className="sm:hidden">{publishing ? 'Publicando...' : 'Publicar y Obtener Enlace'}</span>
             </Button>
           ) : (
             <Button size="lg" className="flex-1 gap-1.5" onClick={goNext}>

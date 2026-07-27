@@ -1,24 +1,33 @@
 'use client'
 
 import { useState } from 'react'
-import { LayoutGrid, MessagesSquare, Plus } from 'lucide-react'
+import { LayoutGrid, MessagesSquare, Plus, Loader2, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PropertyCard } from '@/components/property-card'
 import { DemandCard } from '@/components/demand-card'
 import { DemandFormModal } from '@/components/demand-form-modal'
 import { Toast, useToast } from '@/components/ui/toast'
-import { useProperties, useDemands } from '@/lib/mockStorage'
+import { useProperties, useDemands } from '@/lib/store'
 import { cn } from '@/lib/utils'
 
 type View = 'directorio' | 'muro'
+
+function EmptyState({ icon: Icon, message }: { icon: typeof Loader2; message: string }) {
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-secondary/30 py-12 text-center text-sm text-muted-foreground">
+      <Icon className="size-5" />
+      {message}
+    </div>
+  )
+}
 
 export function ListingsSection() {
   const [view, setView] = useState<View>('directorio')
   // Simula si el usuario que mira es un agente/propietario.
   const [isAgent, setIsAgent] = useState(false)
   const [showDemandForm, setShowDemandForm] = useState(false)
-  const properties = useProperties()
-  const demands = useDemands()
+  const { properties, loading: propertiesLoading, error: propertiesError } = useProperties()
+  const { demands, loading: demandsLoading, error: demandsError } = useDemands()
   const toast = useToast()
 
   return (
@@ -70,11 +79,19 @@ export function ListingsSection() {
               Propiedades revisadas una por una. Contacta directo, sin intermediarios.
             </p>
           </div>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {properties.map((property) => (
-              <PropertyCard key={property.id} property={property} />
-            ))}
-          </div>
+          {propertiesError ? (
+            <EmptyState icon={TriangleAlert} message={propertiesError.message} />
+          ) : propertiesLoading ? (
+            <EmptyState icon={Loader2} message="Cargando propiedades..." />
+          ) : properties.length === 0 ? (
+            <EmptyState icon={TriangleAlert} message="Aún no hay propiedades publicadas." />
+          ) : (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {properties.map((property) => (
+                <PropertyCard key={property.id} property={property} />
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <div className="mt-10" id="muro" role="tabpanel">
@@ -115,11 +132,19 @@ export function ListingsSection() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {demands.map((demand) => (
-              <DemandCard key={demand.id} demand={demand} isAgent={isAgent} />
-            ))}
-          </div>
+          {demandsError ? (
+            <EmptyState icon={TriangleAlert} message={demandsError.message} />
+          ) : demandsLoading ? (
+            <EmptyState icon={Loader2} message="Cargando el Muro de Demandas..." />
+          ) : demands.length === 0 ? (
+            <EmptyState icon={TriangleAlert} message="Aún no hay solicitudes en el Muro." />
+          ) : (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {demands.map((demand) => (
+                <DemandCard key={demand.id} demand={demand} isAgent={isAgent} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 

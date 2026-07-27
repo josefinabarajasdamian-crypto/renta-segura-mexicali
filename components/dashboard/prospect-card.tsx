@@ -1,6 +1,6 @@
 import { Wallet, MapPin, Users, Sparkles, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { Demand } from '@/lib/mockStorage'
+import { formatRelativeTime, type Demand } from '@/lib/store'
 
 function initials(name: string) {
   return name
@@ -21,7 +21,7 @@ export function ProspectCard({ demand, match }: { demand: Demand; match: string 
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-foreground">{demand.name}</p>
-            <p className="text-xs text-muted-foreground">{demand.postedAt}</p>
+            <p className="text-xs text-muted-foreground">{formatRelativeTime(demand.createdAt)}</p>
           </div>
         </div>
         <span className="inline-flex items-center gap-1 rounded-full bg-accent/12 px-2 py-1 text-[0.7rem] font-semibold text-accent">

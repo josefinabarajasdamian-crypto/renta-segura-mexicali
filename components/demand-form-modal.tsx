@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { X, Send } from 'lucide-react'
+import { X, Send, Loader2, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { mexicaliZones } from '@/lib/data'
-import { saveDemand } from '@/lib/mockStorage'
+import { saveDemand } from '@/lib/store'
 
 export function DemandFormModal({
   onClose,
@@ -18,21 +18,30 @@ export function DemandFormModal({
   const [budget, setBudget] = useState('')
   const [zone, setZone] = useState('')
   const [tenants, setTenants] = useState('1')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!message.trim() || !budget.trim() || !zone.trim()) return
 
-    saveDemand({
-      name: name.trim() || 'Usuario Anónimo',
-      anonymous: !name.trim(),
-      message: message.trim(),
-      budget: budget.trim(),
-      zone: zone.trim(),
-      tenants: tenants.trim() || '1',
-    })
-
-    onPublished()
+    setSubmitting(true)
+    setError(null)
+    try {
+      await saveDemand({
+        name: name.trim() || 'Usuario Anónimo',
+        anonymous: !name.trim(),
+        message: message.trim(),
+        budget: budget.trim(),
+        zone: zone.trim(),
+        tenants: tenants.trim() || '1',
+      })
+      onPublished()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo publicar tu solicitud.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -128,9 +137,20 @@ export function DemandFormModal({
             </datalist>
           </div>
 
-          <Button type="submit" size="lg" className="mt-1 w-full gap-1.5">
-            <Send className="size-4" />
-            Publicar en el Muro
+          {error && (
+            <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3.5 py-2.5 text-destructive">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <p className="text-xs font-medium leading-relaxed">{error}</p>
+            </div>
+          )}
+
+          <Button type="submit" size="lg" className="mt-1 w-full gap-1.5" disabled={submitting}>
+            {submitting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Send className="size-4" />
+            )}
+            {submitting ? 'Publicando...' : 'Publicar en el Muro'}
           </Button>
         </form>
       </div>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Plus, Menu, X, Target, FileText, ScanLine } from 'lucide-react'
+import { Plus, Menu, X, Target, FileText, ScanLine, Loader2, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   useProperties,
@@ -11,7 +11,7 @@ import {
   deleteProperty,
   type Property,
   type PropertyStatus,
-} from '@/lib/mockStorage'
+} from '@/lib/store'
 import { Toast, useToast } from '@/components/ui/toast'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { DashboardSidebar } from '@/components/dashboard/dashboard-sidebar'
@@ -24,8 +24,8 @@ import { ContractTemplates } from '@/components/dashboard/contract-templates'
 export default function DashboardPage() {
   const [active, setActive] = useState('resumen')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const properties = useProperties()
-  const demands = useDemands()
+  const { properties, loading: propertiesLoading, error: propertiesError } = useProperties()
+  const { demands } = useDemands()
   const toast = useToast()
 
   function navigate(id: string) {
@@ -35,14 +35,22 @@ export default function DashboardPage() {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  function handleStatusChange(id: string, status: PropertyStatus) {
-    updatePropertyStatus(id, status)
-    toast.show(`Estatus actualizado a "${status}"`)
+  async function handleStatusChange(id: string, status: PropertyStatus) {
+    try {
+      await updatePropertyStatus(id, status)
+      toast.show(`Estatus actualizado a "${status}"`)
+    } catch (err) {
+      toast.show(err instanceof Error ? err.message : 'No se pudo actualizar el estatus')
+    }
   }
 
-  function handleDelete(id: string) {
-    deleteProperty(id)
-    toast.show('Propiedad eliminada')
+  async function handleDelete(id: string) {
+    try {
+      await deleteProperty(id)
+      toast.show('Propiedad eliminada')
+    } catch (err) {
+      toast.show(err instanceof Error ? err.message : 'No se pudo eliminar la propiedad')
+    }
   }
 
   function handleCopyLink(property: Property) {
@@ -145,7 +153,17 @@ export default function DashboardPage() {
                 {properties.length} publicadas
               </span>
             </div>
-            {properties.length === 0 ? (
+            {propertiesError ? (
+              <div className="flex items-start gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-destructive">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+                <p className="text-sm font-medium leading-relaxed">{propertiesError.message}</p>
+              </div>
+            ) : propertiesLoading ? (
+              <div className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-card p-8 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Cargando propiedades...
+              </div>
+            ) : properties.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
                 <p className="text-sm text-muted-foreground">
                   Aún no tienes propiedades publicadas.

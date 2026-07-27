@@ -20,7 +20,7 @@ import { FormField } from '@/components/property-wizard/form-field'
 import { CounterInput } from '@/components/property-wizard/counter-input'
 import { ToggleRow } from '@/components/property-wizard/toggle-switch'
 import { mexicaliZones } from '@/lib/data'
-import { saveProperty } from '@/lib/mockStorage'
+import { saveProperty } from '@/lib/store'
 
 type ScanStatus = 'idle' | 'scanning' | 'scanned' | 'error'
 
@@ -132,6 +132,8 @@ export default function ImportarPage() {
   const [status, setStatus] = useState<ScanStatus>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
+  const [publishing, setPublishing] = useState(false)
+  const [publishError, setPublishError] = useState<string | null>(null)
 
   function update(patch: Partial<FormState>) {
     setForm((prev) => ({ ...prev, ...patch }))
@@ -194,7 +196,10 @@ export default function ImportarPage() {
     if (galleryInputRef.current) galleryInputRef.current.value = ''
   }
 
-  function publish() {
+  async function publish() {
+    setPublishing(true)
+    setPublishError(null)
+
     const servicios: string[] = []
     if (form.agua) servicios.push('Agua Incluida')
     if (form.internet) servicios.push('Internet Incluido')
@@ -208,22 +213,26 @@ export default function ImportarPage() {
       ...servicios,
     ].slice(0, 5)
 
-    saveProperty({
-      image: imagePreview || '/images/depto-uabc.png',
-      price: Number(form.precio) || 0,
-      title: form.titulo || `Propiedad en ${form.zona || 'Mexicali'}`,
-      location: `${form.zona || 'Mexicali'}, Mexicali`,
-      zone: form.zona,
-      tags,
-      whatsapp: normalizeWhatsapp(form.telefono) || '526860000000',
-      bedrooms: form.recamaras,
-      bathrooms: form.banos,
-      coolingType: form.clima || undefined,
-      petsPolicy: form.mascotas ? 'Cualquier mascota' : 'No acepta',
-      description: form.descripcion || undefined,
-    })
-
-    router.push('/')
+    try {
+      await saveProperty({
+        image: imagePreview || '/images/depto-uabc.png',
+        price: Number(form.precio) || 0,
+        title: form.titulo || `Propiedad en ${form.zona || 'Mexicali'}`,
+        location: `${form.zona || 'Mexicali'}, Mexicali`,
+        zone: form.zona,
+        tags,
+        whatsapp: normalizeWhatsapp(form.telefono) || '526860000000',
+        bedrooms: form.recamaras,
+        bathrooms: form.banos,
+        coolingType: form.clima || undefined,
+        petsPolicy: form.mascotas ? 'Cualquier mascota' : 'No acepta',
+        description: form.descripcion || undefined,
+      })
+      router.push('/')
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : 'No se pudo publicar la propiedad.')
+      setPublishing(false)
+    }
   }
 
   const showForm = status === 'scanned' || (status === 'error' && imagePreview)
@@ -451,15 +460,25 @@ export default function ImportarPage() {
 
       {showForm && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur-md">
+          {publishError && (
+            <div className="mx-auto flex max-w-2xl items-start gap-2 px-4 pt-3 text-destructive sm:px-6">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <p className="text-xs font-medium leading-relaxed">{publishError}</p>
+            </div>
+          )}
           <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3 sm:px-6">
             <Button
               size="lg"
               className="flex-1 gap-1.5"
               onClick={publish}
-              disabled={!canPublish}
+              disabled={!canPublish || publishing}
             >
-              <Rocket className="size-4" />
-              Publicar en Renta Segura
+              {publishing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Rocket className="size-4" />
+              )}
+              {publishing ? 'Publicando...' : 'Publicar en Renta Segura'}
             </Button>
           </div>
         </div>
