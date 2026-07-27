@@ -29,7 +29,7 @@ export function PropertyManageRow({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   function copyLink() {
-    const url = `https://rentasegura.mx/propiedad/${property.id}`
+    const url = `${window.location.origin}/propiedad/${property.id}`
     navigator.clipboard?.writeText(url).catch(() => {})
     onCopyLink(property)
   }
