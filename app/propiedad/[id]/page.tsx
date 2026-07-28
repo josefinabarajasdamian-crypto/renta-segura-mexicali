@@ -1,46 +1,103 @@
-import { notFound } from 'next/navigation'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft,
   BadgeCheck,
   BedDouble,
+  Bath,
   CalendarClock,
   Car,
-  Clock,
-  Droplets,
-  FileCheck,
-  FileText,
+  Loader2,
   PawPrint,
   ShieldCheck,
   Snowflake,
+  TriangleAlert,
   Wallet,
-  Wifi,
   Zap,
 } from 'lucide-react'
-import { propertyDetails } from '@/lib/data'
 import { Button } from '@/components/ui/button'
 import { PropertyGallery } from '@/components/property-gallery'
 import { WhatsAppCta } from '@/components/whatsapp-cta'
+import { getPropertyById, type Property } from '@/lib/store'
+import { SupabaseNotConfiguredError } from '@/lib/store'
 
-export function generateStaticParams() {
-  return Object.keys(propertyDetails).map((id) => ({ id }))
-}
+export default function PropertyDetailPage() {
+  const params = useParams<{ id: string }>()
+  const [property, setProperty] = useState<Property | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-export default async function PropertyDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id } = await params
-  const p = propertyDetails[id]
-  if (!p) notFound()
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    setError(null)
+
+    getPropertyById(params.id)
+      .then((data) => {
+        if (!active) return
+        if (!data) {
+          setError('No encontramos esta propiedad. Puede que ya no esté disponible.')
+        } else {
+          setProperty(data)
+        }
+      })
+      .catch((err) => {
+        if (!active) return
+        setError(
+          err instanceof SupabaseNotConfiguredError
+            ? err.message
+            : 'No se pudo cargar esta propiedad. Intenta de nuevo.',
+        )
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [params.id])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-2 text-muted-foreground">
+        <Loader2 className="size-6 animate-spin" />
+        Cargando propiedad...
+      </div>
+    )
+  }
+
+  if (error || !property) {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4 text-center">
+        <span className="flex size-14 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+          <TriangleAlert className="size-7" />
+        </span>
+        <p className="max-w-sm text-sm text-muted-foreground">{error}</p>
+        <Button nativeButton={false} render={<Link href="/" />}>
+          <ArrowLeft className="size-4" />
+          Volver a la búsqueda
+        </Button>
+      </div>
+    )
+  }
+
+  const p = property
+  const whatsappMessage = `Hola, vi tu propiedad "${p.title}" en Renta Segura Mexicali y me interesa. ¿Sigue disponible?`
 
   const specs = [
-    { icon: Snowflake, label: 'Clima', value: p.specs.climate },
-    { icon: Car, label: 'Estacionamiento', value: p.specs.parking },
-    { icon: PawPrint, label: 'Mascotas', value: p.specs.pets },
-    { icon: BedDouble, label: 'Distribución', value: p.specs.layout },
-  ]
+    p.coolingType && { icon: Snowflake, label: 'Clima', value: p.coolingType },
+    p.parking && { icon: Car, label: 'Estacionamiento', value: p.parking },
+    p.petsPolicy && { icon: PawPrint, label: 'Mascotas', value: p.petsPolicy },
+    (p.bedrooms || p.bathrooms) && {
+      icon: BedDouble,
+      label: 'Distribución',
+      value: `${p.bedrooms ?? 0} Recámaras, ${p.bathrooms ?? 0} Baños`,
+    },
+  ].filter(Boolean) as { icon: typeof Snowflake; label: string; value: string }[]
 
   return (
     <div className="min-h-dvh bg-background pb-28 lg:pb-0">
@@ -74,35 +131,68 @@ export default async function PropertyDetailPage({
         </div>
 
         {/* Gallery */}
-        <PropertyGallery images={p.gallery} />
+        <PropertyGallery images={[{ src: p.image, alt: p.title }]} />
 
         {/* Content grid */}
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_360px]">
           <div className="flex flex-col gap-8">
             {/* Specs */}
-            <section>
-              <h2 className="mb-4 font-display text-lg font-bold text-foreground">
-                Especificaciones clave
-              </h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {specs.map(({ icon: Icon, label, value }) => (
-                  <div
-                    key={label}
-                    className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
-                  >
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <Icon className="size-5" />
-                    </span>
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        {label}
-                      </p>
-                      <p className="text-sm font-semibold leading-snug text-foreground">{value}</p>
+            {specs.length > 0 && (
+              <section>
+                <h2 className="mb-4 font-display text-lg font-bold text-foreground">
+                  Especificaciones clave
+                </h2>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {specs.map(({ icon: Icon, label, value }) => (
+                    <div
+                      key={label}
+                      className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
+                    >
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Icon className="size-5" />
+                      </span>
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          {label}
+                        </p>
+                        <p className="text-sm font-semibold leading-snug text-foreground">
+                          {value}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {p.tags.length > 0 && (
+              <section>
+                <h2 className="mb-3 font-display text-lg font-bold text-foreground">
+                  Amenidades
+                </h2>
+                <div className="flex flex-wrap gap-2">
+                  {p.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-medium text-primary"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {p.description && (
+              <section>
+                <h2 className="mb-3 font-display text-lg font-bold text-foreground">
+                  Descripción
+                </h2>
+                <p className="text-pretty text-sm leading-relaxed text-foreground/90">
+                  {p.description}
+                </p>
+              </section>
+            )}
 
             {/* Security & reputation */}
             <section className="rounded-2xl border border-accent/30 bg-accent/5 p-5 shadow-sm">
@@ -110,63 +200,15 @@ export default async function PropertyDetailPage({
                 <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent">
                   <ShieldCheck className="size-6" />
                 </span>
-                <div className="flex flex-col gap-4">
-                  <div>
-                    <h2 className="font-display text-lg font-bold text-foreground">
-                      Seguridad y reputación
-                    </h2>
-                    <p className="mt-1 text-pretty text-sm leading-relaxed text-muted-foreground">
-                      Esta propiedad fue validada por el equipo de Renta Segura. Identidad del
-                      propietario confirmada y sin antecedentes de retención injustificada de
-                      depósitos.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" className="gap-1.5 bg-card">
-                      <FileText className="size-4" />
-                      Ver Contrato Modelo
-                    </Button>
-                    <Button variant="outline" size="sm" className="gap-1.5 bg-card">
-                      <FileCheck className="size-4" />
-                      Solicitar Certificado de Inquilino
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Owner */}
-            <section>
-              <h2 className="mb-4 font-display text-lg font-bold text-foreground">
-                Sobre el propietario
-              </h2>
-              <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm sm:flex-row sm:items-center">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/10 font-display text-lg font-bold text-primary">
-                    {p.owner.name
-                      .replace(/^(Ing\.|Lic\.|Arq\.)\s*/, '')
-                      .split(' ')
-                      .map((n) => n[0])
-                      .slice(0, 2)
-                      .join('')}
-                  </span>
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Publicado por
-                    </p>
-                    <p className="text-sm font-bold text-foreground">{p.owner.name}</p>
-                    <p className="text-xs font-medium text-primary">{p.owner.role}</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 sm:ml-auto">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-medium text-accent">
-                    <Clock className="size-3.5" />
-                    {p.owner.responseTime}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-                    <BadgeCheck className="size-3.5" />
-                    {p.owner.tenure}
-                  </span>
+                <div>
+                  <h2 className="font-display text-lg font-bold text-foreground">
+                    Seguridad y reputación
+                  </h2>
+                  <p className="mt-1 text-pretty text-sm leading-relaxed text-muted-foreground">
+                    Esta propiedad fue validada por el equipo de Renta Segura. Identidad del
+                    propietario confirmada y sin antecedentes de retención injustificada de
+                    depósitos.
+                  </p>
                 </div>
               </div>
             </section>
@@ -190,39 +232,44 @@ export default async function PropertyDetailPage({
               </div>
 
               <dl className="flex flex-col gap-3 py-4 text-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <dt className="inline-flex items-center gap-2 text-muted-foreground">
-                    <Wallet className="size-4" />
-                    Fianza / Depósito
-                  </dt>
-                  <dd className="font-semibold text-foreground">
-                    {'$'}
-                    {p.deposit.toLocaleString('es-MX')} MXN
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <dt className="inline-flex items-center gap-2 text-muted-foreground">
-                    <CalendarClock className="size-4" />
-                    Contrato
-                  </dt>
-                  <dd className="text-right font-semibold text-foreground">{p.contract}</dd>
-                </div>
+                {p.deposit != null && (
+                  <div className="flex items-center justify-between gap-2">
+                    <dt className="inline-flex items-center gap-2 text-muted-foreground">
+                      <Wallet className="size-4" />
+                      Fianza / Depósito
+                    </dt>
+                    <dd className="font-semibold text-foreground">
+                      {'$'}
+                      {p.deposit.toLocaleString('es-MX')} MXN
+                    </dd>
+                  </div>
+                )}
+                {p.contractDuration && (
+                  <div className="flex items-center justify-between gap-2">
+                    <dt className="inline-flex items-center gap-2 text-muted-foreground">
+                      <CalendarClock className="size-4" />
+                      Contrato
+                    </dt>
+                    <dd className="text-right font-semibold text-foreground">
+                      {p.contractDuration}
+                    </dd>
+                  </div>
+                )}
+                {p.electricityRate && (
+                  <div className="flex items-center justify-between gap-2">
+                    <dt className="inline-flex items-center gap-2 text-muted-foreground">
+                      <Zap className="size-4" />
+                      Luz
+                    </dt>
+                    <dd className="text-right font-semibold text-foreground">
+                      {p.electricityRate}
+                    </dd>
+                  </div>
+                )}
               </dl>
 
-              <div className="flex flex-col gap-2 rounded-xl bg-muted/60 p-3 text-sm">
-                <p className="inline-flex items-center gap-2 font-medium text-foreground">
-                  <Droplets className="size-4 text-primary" />
-                  <Wifi className="-ml-1 size-4 text-primary" />
-                  {p.servicesIncluded}
-                </p>
-                <p className="inline-flex items-center gap-2 font-medium text-foreground">
-                  <Zap className="size-4 text-muted-foreground" />
-                  {p.servicesIndependent}
-                </p>
-              </div>
-
               <div className="mt-4 hidden lg:block">
-                <WhatsAppCta phone={p.whatsapp} message={p.whatsappMessage} />
+                <WhatsAppCta phone={p.whatsapp} message={whatsappMessage} />
               </div>
               <p className="mt-3 hidden text-center text-xs text-muted-foreground lg:block">
                 Trato directo, sin intermediarios ni comisiones ocultas.
@@ -243,12 +290,7 @@ export default async function PropertyDetailPage({
             <p className="text-xs text-muted-foreground">MXN / mes</p>
           </div>
           <div className="flex-1">
-            <WhatsAppCta
-              phone={p.whatsapp}
-              message={p.whatsappMessage}
-              label="WhatsApp"
-              showPreview={false}
-            />
+            <WhatsAppCta phone={p.whatsapp} message={whatsappMessage} label="WhatsApp" showPreview={false} />
           </div>
         </div>
       </div>

@@ -168,6 +168,13 @@ export async function getProperties(): Promise<Property[]> {
   return (data as PropertyRow[]).map(rowToProperty)
 }
 
+export async function getPropertyById(id: string): Promise<Property | null> {
+  const client = requireClient()
+  const { data, error } = await client.from('properties').select('*').eq('id', id).maybeSingle()
+  if (error) throw error
+  return data ? rowToProperty(data as PropertyRow) : null
+}
+
 export async function saveProperty(input: NewProperty): Promise<Property> {
   const client = requireClient()
   const { data, error } = await client
