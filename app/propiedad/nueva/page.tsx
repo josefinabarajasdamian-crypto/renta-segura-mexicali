@@ -13,6 +13,7 @@ import { StepPreview } from '@/components/property-wizard/step-preview'
 import { PublishSuccessModal } from '@/components/property-wizard/publish-success-modal'
 import { defaultFormData, wizardSteps, type PropertyFormData } from '@/components/property-wizard/types'
 import { saveProperty } from '@/lib/store'
+import { uploadPropertyImages } from '@/lib/supabase'
 
 const IMAGE_BY_TYPE: Record<string, string> = {
   Departamento: '/images/depto-uabc.png',
@@ -60,8 +61,14 @@ export default function NuevaPropiedadPage() {
     setPublishing(true)
     setPublishError(null)
     try {
+      const uploadedImages =
+        formData.photos.length > 0 ? await uploadPropertyImages(formData.photos) : []
+
       const created = await saveProperty({
-        image: IMAGE_BY_TYPE[formData.propertyType] ?? '/images/depto-uabc.png',
+        images:
+          uploadedImages.length > 0
+            ? uploadedImages
+            : [IMAGE_BY_TYPE[formData.propertyType] ?? '/images/depto-uabc.png'],
         price: Number(formData.rentPrice) || 0,
         title: `${formData.propertyType || 'Propiedad'} en ${formData.zone || 'Mexicali'}`,
         location: `${formData.zone || 'Mexicali'}, Mexicali`,

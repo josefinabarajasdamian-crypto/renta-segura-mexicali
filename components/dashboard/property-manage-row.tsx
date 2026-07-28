@@ -59,7 +59,7 @@ export function PropertyManageRow({
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center">
       <img
-        src={property.image || '/placeholder.svg'}
+        src={property.images[0] || '/placeholder.svg'}
         alt={property.title}
         className="h-24 w-full rounded-xl object-cover sm:size-16"
       />

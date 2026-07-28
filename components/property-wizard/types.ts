@@ -2,6 +2,7 @@ export type PetsPolicy = 'No acepta' | 'Solo gato' | 'Perro chico' | 'Cualquier 
 
 export type PropertyFormData = {
   // Paso 1: Ubicación y Precio
+  photos: File[]
   propertyType: string
   zone: string
   rentPrice: string
@@ -28,6 +29,7 @@ export type PropertyFormData = {
 }
 
 export const defaultFormData: PropertyFormData = {
+  photos: [],
   propertyType: '',
   zone: '',
   rentPrice: '',

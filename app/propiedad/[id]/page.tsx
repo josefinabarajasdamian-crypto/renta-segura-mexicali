@@ -131,7 +131,13 @@ export default function PropertyDetailPage() {
         </div>
 
         {/* Gallery */}
-        <PropertyGallery images={[{ src: p.image, alt: p.title }]} />
+        <PropertyGallery
+          images={
+            p.images.length > 0
+              ? p.images.map((src) => ({ src, alt: p.title }))
+              : [{ src: '/images/depto-uabc.png', alt: p.title }]
+          }
+        />
 
         {/* Content grid */}
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_360px]">

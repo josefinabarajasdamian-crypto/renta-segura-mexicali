@@ -11,6 +11,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.properties (
   id uuid primary key default gen_random_uuid(),
   image text not null default '',
+  images text[] not null default '{}',
   price numeric not null default 0,
   title text not null default '',
   location text not null default '',
@@ -32,6 +33,33 @@ create table if not exists public.properties (
   description text,
   created_at timestamptz not null default now()
 );
+
+-- Si la tabla ya existía de una versión anterior de este script (sin la
+-- columna images), se agrega aquí y se rellena con la foto que ya tenía.
+alter table public.properties add column if not exists images text[] not null default '{}';
+
+update public.properties
+set images = array[image]
+where (images is null or array_length(images, 1) is null) and image is not null and image <> '';
+
+-- ============================================================
+-- Storage: bucket público para las fotos de propiedades
+-- ============================================================
+insert into storage.buckets (id, name, public)
+values ('property-images', 'property-images', true)
+on conflict (id) do nothing;
+
+drop policy if exists "property_images_public_read" on storage.objects;
+create policy "property_images_public_read" on storage.objects
+  for select to anon, authenticated using (bucket_id = 'property-images');
+
+drop policy if exists "property_images_public_insert" on storage.objects;
+create policy "property_images_public_insert" on storage.objects
+  for insert to anon, authenticated with check (bucket_id = 'property-images');
+
+drop policy if exists "property_images_public_delete" on storage.objects;
+create policy "property_images_public_delete" on storage.objects
+  for delete to anon, authenticated using (bucket_id = 'property-images');
 
 -- ============================================================
 -- Tabla: demands (Muro de Demandas)
@@ -134,6 +162,12 @@ select * from (values
 where not exists (
   select 1 from public.properties p where p.title = seed.title
 );
+
+-- Completa el arreglo images para cualquier fila (semilla o previa) que
+-- todavía no lo tenga, a partir de la foto única en image.
+update public.properties
+set images = array[image]
+where (images is null or array_length(images, 1) is null) and image is not null and image <> '';
 
 -- Si las 3 propiedades semilla ya existían de una corrida anterior del
 -- script (sin estos campos), se completan aquí también.
