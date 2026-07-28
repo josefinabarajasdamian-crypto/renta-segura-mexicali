@@ -7,6 +7,7 @@ export type PropertyStatus = 'Disponible' | 'En Trato' | 'Rentado'
 
 export interface Property {
   id: string
+  userId?: string
   images: string[]
   price: number
   title: string
@@ -31,6 +32,7 @@ export interface Property {
 
 export interface Demand {
   id: string
+  userId?: string
   name: string
   anonymous?: boolean
   message: string
@@ -48,6 +50,7 @@ export type NewDemand = Omit<Demand, 'id' | 'createdAt'>
 
 interface PropertyRow {
   id: string
+  user_id: string | null
   image: string
   images: string[] | null
   price: number
@@ -73,6 +76,7 @@ interface PropertyRow {
 
 interface DemandRow {
   id: string
+  user_id: string | null
   name: string
   anonymous: boolean
   message: string
@@ -85,6 +89,7 @@ interface DemandRow {
 function rowToProperty(row: PropertyRow): Property {
   return {
     id: row.id,
+    userId: row.user_id ?? undefined,
     images: row.images && row.images.length > 0 ? row.images : row.image ? [row.image] : [],
     price: row.price,
     title: row.title,
@@ -110,6 +115,7 @@ function rowToProperty(row: PropertyRow): Property {
 
 function propertyToRow(input: NewProperty) {
   return {
+    user_id: input.userId ?? null,
     image: input.images[0] ?? '',
     images: input.images,
     price: input.price,
@@ -136,6 +142,7 @@ function propertyToRow(input: NewProperty) {
 function rowToDemand(row: DemandRow): Demand {
   return {
     id: row.id,
+    userId: row.user_id ?? undefined,
     name: row.name,
     anonymous: row.anonymous,
     message: row.message,
@@ -165,6 +172,17 @@ export async function getProperties(): Promise<Property[]> {
   const { data, error } = await client
     .from('properties')
     .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data as PropertyRow[]).map(rowToProperty)
+}
+
+export async function getPropertiesByOwner(userId: string): Promise<Property[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('properties')
+    .select('*')
+    .eq('user_id', userId)
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data as PropertyRow[]).map(rowToProperty)
@@ -215,6 +233,7 @@ export async function saveDemand(input: NewDemand): Promise<Demand> {
   const { data, error } = await client
     .from('demands')
     .insert({
+      user_id: input.userId ?? null,
       name: input.name,
       anonymous: input.anonymous ?? false,
       message: input.message,
@@ -226,6 +245,17 @@ export async function saveDemand(input: NewDemand): Promise<Demand> {
     .single()
   if (error) throw error
   return rowToDemand(data as DemandRow)
+}
+
+export async function getDemandsByOwner(userId: string): Promise<Demand[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('demands')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data as DemandRow[]).map(rowToDemand)
 }
 
 export function formatRelativeTime(iso: string): string {
@@ -324,6 +354,112 @@ export function useDemands() {
       supabase?.removeChannel(channel)
     }
   }, [])
+
+  return { demands, loading, error }
+}
+
+export function useMyProperties(userId: string | null | undefined) {
+  const [properties, setProperties] = useState<Property[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setError(new SupabaseNotConfiguredError())
+      setLoading(false)
+      return
+    }
+    if (!userId) {
+      setProperties([])
+      setLoading(false)
+      return
+    }
+
+    let active = true
+
+    async function load() {
+      try {
+        const data = await getPropertiesByOwner(userId as string)
+        if (active) {
+          setProperties(data)
+          setError(null)
+        }
+      } catch (err) {
+        if (active) setError(err as Error)
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    load()
+
+    const channel = supabase
+      .channel(`my-properties-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'properties', filter: `user_id=eq.${userId}` },
+        load,
+      )
+      .subscribe()
+
+    return () => {
+      active = false
+      supabase?.removeChannel(channel)
+    }
+  }, [userId])
+
+  return { properties, loading, error }
+}
+
+export function useMyDemands(userId: string | null | undefined) {
+  const [demands, setDemands] = useState<Demand[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setError(new SupabaseNotConfiguredError())
+      setLoading(false)
+      return
+    }
+    if (!userId) {
+      setDemands([])
+      setLoading(false)
+      return
+    }
+
+    let active = true
+
+    async function load() {
+      try {
+        const data = await getDemandsByOwner(userId as string)
+        if (active) {
+          setDemands(data)
+          setError(null)
+        }
+      } catch (err) {
+        if (active) setError(err as Error)
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    load()
+
+    const channel = supabase
+      .channel(`my-demands-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'demands', filter: `user_id=eq.${userId}` },
+        load,
+      )
+      .subscribe()
+
+    return () => {
+      active = false
+      supabase?.removeChannel(channel)
+    }
+  }, [userId])
 
   return { demands, loading, error }
 }

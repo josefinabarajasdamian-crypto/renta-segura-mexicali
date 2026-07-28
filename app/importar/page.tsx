@@ -23,6 +23,7 @@ import { PhotoPicker } from '@/components/property-wizard/photo-picker'
 import { mexicaliZones } from '@/lib/data'
 import { saveProperty } from '@/lib/store'
 import { uploadPropertyImages } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth'
 
 type ScanStatus = 'idle' | 'scanning' | 'scanned' | 'error'
 
@@ -137,6 +138,7 @@ function applyScanResult(data: ScanResult): FormState {
 
 export default function ImportarPage() {
   const router = useRouter()
+  const { user } = useAuth()
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -226,6 +228,12 @@ export default function ImportarPage() {
       ...servicios,
     ].slice(0, 5)
 
+    if (!user) {
+      setPublishError('Debes iniciar sesión para publicar una propiedad.')
+      setPublishing(false)
+      return
+    }
+
     try {
       const filesToUpload = [
         ...(imagePreview ? [dataUrlToBlob(imagePreview)] : []),
@@ -235,6 +243,7 @@ export default function ImportarPage() {
         filesToUpload.length > 0 ? await uploadPropertyImages(filesToUpload) : []
 
       await saveProperty({
+        userId: user.id,
         images: uploadedImages.length > 0 ? uploadedImages : ['/images/depto-uabc.png'],
         price: Number(form.precio) || 0,
         title: form.titulo || `Propiedad en ${form.zona || 'Mexicali'}`,

@@ -14,6 +14,7 @@ import { PublishSuccessModal } from '@/components/property-wizard/publish-succes
 import { defaultFormData, wizardSteps, type PropertyFormData } from '@/components/property-wizard/types'
 import { saveProperty } from '@/lib/store'
 import { uploadPropertyImages } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth'
 
 const IMAGE_BY_TYPE: Record<string, string> = {
   Departamento: '/images/depto-uabc.png',
@@ -36,6 +37,7 @@ function buildTags(data: PropertyFormData): string[] {
 
 export default function NuevaPropiedadPage() {
   const router = useRouter()
+  const { user, profile } = useAuth()
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState<PropertyFormData>(defaultFormData)
   const [shortLink, setShortLink] = useState<string | null>(null)
@@ -58,6 +60,11 @@ export default function NuevaPropiedadPage() {
   }
 
   async function publish() {
+    if (!user) {
+      setPublishError('Debes iniciar sesión para publicar una propiedad.')
+      return
+    }
+
     setPublishing(true)
     setPublishError(null)
     try {
@@ -65,6 +72,7 @@ export default function NuevaPropiedadPage() {
         formData.photos.length > 0 ? await uploadPropertyImages(formData.photos) : []
 
       const created = await saveProperty({
+        userId: user.id,
         images:
           uploadedImages.length > 0
             ? uploadedImages
@@ -74,7 +82,7 @@ export default function NuevaPropiedadPage() {
         location: `${formData.zone || 'Mexicali'}, Mexicali`,
         zone: formData.zone,
         tags: buildTags(formData),
-        whatsapp: OWNER_WHATSAPP,
+        whatsapp: profile?.phone ? profile.phone.replace(/\D/g, '') : OWNER_WHATSAPP,
         propertyType: formData.propertyType,
         deposit: Number(formData.deposit) || undefined,
         contractDuration: formData.contractDuration,
