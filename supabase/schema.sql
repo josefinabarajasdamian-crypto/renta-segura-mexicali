@@ -31,12 +31,16 @@ create table if not exists public.properties (
   electricity_rate text,
   pets_policy text,
   description text,
+  source text,
+  needs_review boolean not null default false,
   created_at timestamptz not null default now()
 );
 
 -- Si la tabla ya existía de una versión anterior de este script (sin la
 -- columna images), se agrega aquí y se rellena con la foto que ya tenía.
 alter table public.properties add column if not exists images text[] not null default '{}';
+alter table public.properties add column if not exists source text;
+alter table public.properties add column if not exists needs_review boolean not null default false;
 
 update public.properties
 set images = array[image]
@@ -72,8 +76,11 @@ create table if not exists public.demands (
   budget text not null default '',
   zone text not null default '',
   tenants text not null default '1',
+  source text,
   created_at timestamptz not null default now()
 );
+
+alter table public.demands add column if not exists source text;
 
 -- ============================================================
 -- Perfiles de usuario (Supabase Auth)
