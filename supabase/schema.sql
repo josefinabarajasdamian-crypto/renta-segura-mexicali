@@ -104,6 +104,16 @@ drop policy if exists "profiles_update_own" on public.profiles;
 create policy "profiles_update_own" on public.profiles
   for update to authenticated using (auth.uid() = id) with check (auth.uid() = id);
 
+-- Vista pública con solo los datos seguros de mostrar de cada usuario
+-- (nombre, rol, verificado) — NUNCA el teléfono. Al ser una vista normal
+-- (sin security_invoker), no hereda las políticas RLS de profiles, así
+-- que cualquiera puede consultarla para ver "de quién es" una propiedad,
+-- como el perfil de un autor en una publicación de Facebook.
+create or replace view public.profiles_public as
+select id, full_name, role, is_verified from public.profiles;
+
+grant select on public.profiles_public to anon, authenticated;
+
 -- Crea el perfil automáticamente cuando alguien se registra en Supabase Auth.
 create or replace function public.handle_new_user()
 returns trigger

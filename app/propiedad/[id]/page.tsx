@@ -10,6 +10,7 @@ import {
   Bath,
   CalendarClock,
   Car,
+  ChevronRight,
   Loader2,
   PawPrint,
   ShieldCheck,
@@ -23,12 +24,30 @@ import { PropertyGallery } from '@/components/property-gallery'
 import { WhatsAppCta } from '@/components/whatsapp-cta'
 import { getPropertyById, type Property } from '@/lib/store'
 import { SupabaseNotConfiguredError } from '@/lib/store'
+import { usePublicProfile } from '@/lib/auth'
+
+const ownerRoleLabels: Record<string, string> = {
+  propietario: 'Propietario',
+  agente: 'Agente Inmobiliario',
+  inquilino: 'Inquilino',
+}
+
+function ownerInitials(name: string) {
+  return name
+    .split(' ')
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+}
 
 export default function PropertyDetailPage() {
   const params = useParams<{ id: string }>()
   const [property, setProperty] = useState<Property | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { profile: owner } = usePublicProfile(property?.userId)
 
   useEffect(() => {
     let active = true
@@ -197,6 +216,33 @@ export default function PropertyDetailPage() {
                 <p className="text-pretty text-sm leading-relaxed text-foreground/90">
                   {p.description}
                 </p>
+              </section>
+            )}
+
+            {owner?.fullName && (
+              <section>
+                <h2 className="mb-3 font-display text-lg font-bold text-foreground">
+                  Sobre el propietario
+                </h2>
+                <Link
+                  href={`/perfil/${owner.id}`}
+                  className="group/owner flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
+                >
+                  <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 font-display text-base font-bold text-primary">
+                    {ownerInitials(owner.fullName)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {owner.fullName}
+                    </p>
+                    <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      {owner.isVerified && <BadgeCheck className="size-3.5 text-accent" />}
+                      {ownerRoleLabels[owner.role] ?? owner.role}
+                      {' · Ver perfil y otras propiedades'}
+                    </p>
+                  </div>
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover/owner:translate-x-0.5" />
+                </Link>
               </section>
             )}
 

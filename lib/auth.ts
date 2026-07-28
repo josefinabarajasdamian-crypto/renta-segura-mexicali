@@ -45,6 +45,105 @@ export async function getProfile(userId: string): Promise<Profile | null> {
   return data ? rowToProfile(data as ProfileRow) : null
 }
 
+export interface PublicProfile {
+  id: string
+  fullName: string | null
+  role: UserRole
+  isVerified: boolean
+}
+
+interface PublicProfileRow {
+  id: string
+  full_name: string | null
+  role: UserRole
+  is_verified: boolean
+}
+
+function rowToPublicProfile(row: PublicProfileRow): PublicProfile {
+  return { id: row.id, fullName: row.full_name, role: row.role, isVerified: row.is_verified }
+}
+
+// Perfil público de cualquier usuario (nombre, rol, verificado) — sin
+// teléfono ni datos privados. No requiere sesión iniciada.
+export async function getPublicProfile(userId: string): Promise<PublicProfile | null> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('profiles_public')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle()
+  if (error) throw error
+  return data ? rowToPublicProfile(data as PublicProfileRow) : null
+}
+
+export async function getPublicProfiles(userIds: string[]): Promise<Record<string, PublicProfile>> {
+  if (userIds.length === 0) return {}
+  const client = requireClient()
+  const { data, error } = await client.from('profiles_public').select('*').in('id', userIds)
+  if (error) throw error
+  const map: Record<string, PublicProfile> = {}
+  for (const row of (data as PublicProfileRow[]) ?? []) {
+    map[row.id] = rowToPublicProfile(row)
+  }
+  return map
+}
+
+export function usePublicProfile(userId: string | null | undefined) {
+  const [profile, setProfile] = useState<PublicProfile | null>(null)
+  const [loading, setLoading] = useState(Boolean(userId))
+  const [error, setError] = useState<Error | null>(null)
+
+  useEffect(() => {
+    if (!userId) {
+      setProfile(null)
+      setLoading(false)
+      return
+    }
+    let active = true
+    setLoading(true)
+    getPublicProfile(userId)
+      .then((p) => {
+        if (active) {
+          setProfile(p)
+          setError(null)
+        }
+      })
+      .catch((err) => {
+        if (active) setError(err as Error)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [userId])
+
+  return { profile, loading, error }
+}
+
+export function usePublicProfiles(userIds: string[]) {
+  const [profiles, setProfiles] = useState<Record<string, PublicProfile>>({})
+  const key = [...new Set(userIds)].sort().join(',')
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !key) return
+    let active = true
+    getPublicProfiles(key.split(','))
+      .then((map) => {
+        if (active) setProfiles(map)
+      })
+      .catch(() => {
+        if (active) setProfiles({})
+      })
+    return () => {
+      active = false
+    }
+  }, [key])
+
+  return profiles
+}
+
 export async function signUp(input: {
   email: string
   password: string
