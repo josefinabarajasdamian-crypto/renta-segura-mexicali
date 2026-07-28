@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-export const runtime = 'nodejs'
+export const runtime = 'edge'
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
 
@@ -81,7 +81,11 @@ export async function POST(req: Request) {
               ],
             },
           ],
-          generationConfig: { response_mime_type: 'application/json' },
+          generationConfig: {
+            response_mime_type: 'application/json',
+            temperature: 0.1,
+            maxOutputTokens: 500,
+          },
         }),
       },
     )
