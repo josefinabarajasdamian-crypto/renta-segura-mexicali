@@ -58,6 +58,8 @@ export async function signUp(input: {
     password: input.password,
     options: {
       data: { full_name: input.fullName, phone: input.phone, role: input.role },
+      emailRedirectTo:
+        typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
     },
   })
   if (error) throw error

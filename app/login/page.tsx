@@ -1,18 +1,25 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ShieldCheck, Loader2, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { signIn } from '@/lib/auth'
+import { signIn, useAuth } from '@/lib/auth'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace('/dashboard')
+    }
+  }, [authLoading, user, router])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -28,6 +35,15 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (authLoading || user) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Cargando...
+      </div>
+    )
   }
 
   return (
