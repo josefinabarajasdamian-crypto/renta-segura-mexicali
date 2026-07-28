@@ -76,10 +76,64 @@ create table if not exists public.demands (
 );
 
 -- ============================================================
+-- Perfiles de usuario (Supabase Auth)
+-- ============================================================
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  full_name text,
+  phone text,
+  role text not null default 'inquilino' check (role in ('propietario', 'agente', 'inquilino')),
+  is_verified boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+
+drop policy if exists "profiles_select_own" on public.profiles;
+create policy "profiles_select_own" on public.profiles
+  for select to authenticated using (auth.uid() = id);
+
+drop policy if exists "profiles_update_own" on public.profiles;
+create policy "profiles_update_own" on public.profiles
+  for update to authenticated using (auth.uid() = id) with check (auth.uid() = id);
+
+-- Crea el perfil automáticamente cuando alguien se registra en Supabase Auth.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.profiles (id, full_name, phone, role)
+  values (
+    new.id,
+    new.raw_user_meta_data->>'full_name',
+    new.raw_user_meta_data->>'phone',
+    coalesce(new.raw_user_meta_data->>'role', 'inquilino')
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- ============================================================
+-- Dueño de cada publicación (properties.user_id / demands.user_id)
+-- ============================================================
+alter table public.properties add column if not exists user_id uuid references auth.users(id) on delete cascade;
+alter table public.demands add column if not exists user_id uuid references auth.users(id) on delete set null;
+
+-- ============================================================
 -- Row Level Security
--- Prototipo sin autenticación de usuarios: se permite lectura y
--- escritura pública (rol anon). Antes de un lanzamiento real,
--- reemplaza estas políticas por reglas atadas a auth.uid().
+-- El Directorio y el Muro siguen siendo públicos para lectura (sin login).
+-- Publicar una propiedad requiere sesión iniciada, y solo el dueño
+-- (user_id = auth.uid()) puede editar o eliminar la suya. Las propiedades
+-- sin dueño (creadas antes de este cambio) quedan editables por cualquier
+-- usuario logueado hasta que alguien las reclame.
 -- ============================================================
 alter table public.properties enable row level security;
 alter table public.demands enable row level security;
@@ -89,16 +143,21 @@ create policy "properties_public_select" on public.properties
   for select to anon, authenticated using (true);
 
 drop policy if exists "properties_public_insert" on public.properties;
-create policy "properties_public_insert" on public.properties
-  for insert to anon, authenticated with check (true);
+drop policy if exists "properties_insert_own" on public.properties;
+create policy "properties_insert_own" on public.properties
+  for insert to authenticated with check (user_id = auth.uid());
 
 drop policy if exists "properties_public_update" on public.properties;
-create policy "properties_public_update" on public.properties
-  for update to anon, authenticated using (true) with check (true);
+drop policy if exists "properties_update_own" on public.properties;
+create policy "properties_update_own" on public.properties
+  for update to authenticated
+  using (user_id = auth.uid() or user_id is null)
+  with check (user_id = auth.uid() or user_id is null);
 
 drop policy if exists "properties_public_delete" on public.properties;
-create policy "properties_public_delete" on public.properties
-  for delete to anon, authenticated using (true);
+drop policy if exists "properties_delete_own" on public.properties;
+create policy "properties_delete_own" on public.properties
+  for delete to authenticated using (user_id = auth.uid() or user_id is null);
 
 drop policy if exists "demands_public_select" on public.demands;
 create policy "demands_public_select" on public.demands

@@ -8,10 +8,14 @@ import {
   ShieldQuestion,
   FileText,
   BadgeCheck,
+  LogOut,
+  type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const nav = [
+export type NavItem = { id: string; label: string; icon: LucideIcon }
+
+export const ownerNav: NavItem[] = [
   { id: 'resumen', label: 'Inicio / Resumen', icon: LayoutDashboard },
   { id: 'propiedades', label: 'Mis Propiedades', icon: Home },
   { id: 'leads', label: 'Solicitudes del Muro', icon: Target },
@@ -19,13 +23,36 @@ const nav = [
   { id: 'contratos', label: 'Plantillas de Contratos', icon: FileText },
 ]
 
+export const tenantNav: NavItem[] = [
+  { id: 'resumen', label: 'Inicio / Resumen', icon: LayoutDashboard },
+  { id: 'busquedas', label: 'Mis Búsquedas', icon: Target },
+]
+
 export function DashboardSidebar({
   active,
   onNavigate,
+  nav = ownerNav,
+  name,
+  roleLabel,
+  isVerified,
+  onSignOut,
 }: {
   active: string
   onNavigate?: (id: string) => void
+  nav?: NavItem[]
+  name: string
+  roleLabel: string
+  isVerified?: boolean
+  onSignOut?: () => void
 }) {
+  const initials = name
+    .split(' ')
+    .map((n) => n[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
   return (
     <div className="flex h-full flex-col">
       <a href="/" className="flex items-center gap-2 px-5 py-5" aria-label="Renta Segura inicio">
@@ -67,15 +94,23 @@ export function DashboardSidebar({
       <div className="border-t border-sidebar-border p-3">
         <div className="flex items-center gap-3 rounded-xl px-2 py-2">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-            FR
+            {initials || '?'}
           </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-sidebar-foreground">Ing. Fernando R.</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-sidebar-foreground">{name}</p>
             <p className="inline-flex items-center gap-1 text-[0.7rem] font-medium text-accent">
-              <BadgeCheck className="size-3" />
-              Dueño Verificado
+              {isVerified && <BadgeCheck className="size-3" />}
+              {roleLabel}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={onSignOut}
+            aria-label="Cerrar sesión"
+            className="flex size-8 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          >
+            <LogOut className="size-4" />
+          </button>
         </div>
       </div>
     </div>

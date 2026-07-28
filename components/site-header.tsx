@@ -1,12 +1,26 @@
 'use client'
 
 import { useState } from 'react'
-import { ShieldCheck, Menu, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ShieldCheck, Menu, X, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { useAuth, signOut } from '@/lib/auth'
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false)
+  const router = useRouter()
+  const { user, loading } = useAuth()
+
+  async function handleSignOut() {
+    await signOut()
+    setOpen(false)
+    router.push('/')
+    router.refresh()
+  }
+
+  const accountHref = user ? '/dashboard' : '/registro'
+  const accountLabel = user ? 'Mi Panel' : 'Soy Propietario/Agente'
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/80 bg-background/85 backdrop-blur-md">
@@ -27,12 +41,19 @@ export function SiteHeader() {
           <Button variant="ghost" size="lg" nativeButton={false} render={<a href="#muro" />}>
             Publicar mi Búsqueda
           </Button>
-          <Button variant="ghost" size="lg" nativeButton={false} render={<a href="/dashboard" />}>
-            Soy Propietario/Agente
+          <Button variant="ghost" size="lg" nativeButton={false} render={<a href={accountHref} />}>
+            {accountLabel}
           </Button>
-          <Button size="lg" nativeButton={false} render={<a href="/dashboard" />}>
-            Entrar
-          </Button>
+          {!loading && user ? (
+            <Button variant="outline" size="lg" className="gap-1.5" onClick={handleSignOut}>
+              <LogOut className="size-4" />
+              Salir
+            </Button>
+          ) : (
+            <Button size="lg" nativeButton={false} render={<a href="/login" />}>
+              Entrar
+            </Button>
+          )}
           <ThemeToggle />
         </nav>
 
@@ -67,13 +88,20 @@ export function SiteHeader() {
               size="lg"
               className="justify-start"
               nativeButton={false}
-              render={<a href="/dashboard" />}
+              render={<a href={accountHref} />}
             >
-              Soy Propietario/Agente
+              {accountLabel}
             </Button>
-            <Button size="lg" nativeButton={false} render={<a href="/dashboard" />}>
-              Entrar
-            </Button>
+            {!loading && user ? (
+              <Button size="lg" className="gap-1.5" onClick={handleSignOut}>
+                <LogOut className="size-4" />
+                Salir
+              </Button>
+            ) : (
+              <Button size="lg" nativeButton={false} render={<a href="/login" />}>
+                Entrar
+              </Button>
+            )}
           </div>
         </div>
       )}

@@ -5,6 +5,7 @@ import { X, Send, Loader2, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { mexicaliZones } from '@/lib/data'
 import { saveDemand } from '@/lib/store'
+import { useAuth } from '@/lib/auth'
 
 export function DemandFormModal({
   onClose,
@@ -13,6 +14,7 @@ export function DemandFormModal({
   onClose: () => void
   onPublished: () => void
 }) {
+  const { user } = useAuth()
   const [name, setName] = useState('')
   const [message, setMessage] = useState('')
   const [budget, setBudget] = useState('')
@@ -29,6 +31,7 @@ export function DemandFormModal({
     setError(null)
     try {
       await saveDemand({
+        userId: user?.id,
         name: name.trim() || 'Usuario Anónimo',
         anonymous: !name.trim(),
         message: message.trim(),
