@@ -1,5 +1,7 @@
 -- Renta Segura Mexicali — esquema inicial de Supabase
 -- Ejecuta este script completo en: Supabase Dashboard → SQL Editor → New query
+-- Es seguro volver a ejecutarlo (idempotente): no falla ni duplica datos
+-- si ya corriste una versión anterior de este script.
 
 create extension if not exists pgcrypto;
 
@@ -79,17 +81,32 @@ create policy "demands_public_insert" on public.demands
   for insert to anon, authenticated with check (true);
 
 -- ============================================================
--- Realtime: publica los cambios de estas tablas
+-- Realtime: publica los cambios de estas tablas (idempotente)
 -- ============================================================
-alter publication supabase_realtime add table public.properties;
-alter publication supabase_realtime add table public.demands;
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'properties'
+  ) then
+    alter publication supabase_realtime add table public.properties;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'demands'
+  ) then
+    alter publication supabase_realtime add table public.demands;
+  end if;
+end $$;
 
 -- ============================================================
 -- Datos semilla (las 3 propiedades y 3 demandas de ejemplo)
+-- Se insertan solo si no existe ya una fila con el mismo título/mensaje.
 -- ============================================================
 insert into public.properties
   (image, price, title, location, zone, tags, whatsapp, status, bedrooms, bathrooms, cooling_type)
-values
+select * from (values
   ('/images/depto-uabc.png', 6500, 'Departamento 2 Recámaras a 5 min de UABC Central',
    'Fracc. Villafontana, cerca de UABC', 'UABC Central',
    array['2 Minisplits', 'Servicios Incluidos', 'Acepta Mascotas'], '526861234567',
@@ -102,10 +119,13 @@ values
    'Zona Palaco, Mexicali', 'Palaco',
    array['Amueblado', '1 Minisplit', 'Wifi Incluido'], '526863456789',
    'Rentado', 1, 1, 'Minisplit Inverter')
-on conflict do nothing;
+) as seed(image, price, title, location, zone, tags, whatsapp, status, bedrooms, bathrooms, cooling_type)
+where not exists (
+  select 1 from public.properties p where p.title = seed.title
+);
 
 insert into public.demands (name, anonymous, message, budget, zone, tenants)
-values
+select * from (values
   ('Carlos M.', false,
    'Busco departamento de 4,000 a 6,000 por la Zona Industrial. Somos pareja sin niños, ambos trabajamos y tenemos comprobante de ingresos.',
    '$6k max', 'Industrial', '2'),
@@ -115,4 +135,7 @@ values
   ('Familia Rosales', false,
    'Necesitamos casa de 3 recámaras con patio en Prohogar o Nueva. Presupuesto hasta $9,000, tenemos un perro pequeño. Buscamos contrato de un año.',
    '$9k max', 'Prohogar', '4')
-on conflict do nothing;
+) as seed(name, anonymous, message, budget, zone, tenants)
+where not exists (
+  select 1 from public.demands d where d.message = seed.message
+);
