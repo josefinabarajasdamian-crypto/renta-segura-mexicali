@@ -19,8 +19,10 @@ import { Button } from '@/components/ui/button'
 import { FormField } from '@/components/property-wizard/form-field'
 import { CounterInput } from '@/components/property-wizard/counter-input'
 import { ToggleRow } from '@/components/property-wizard/toggle-switch'
+import { PhotoPicker } from '@/components/property-wizard/photo-picker'
 import { mexicaliZones } from '@/lib/data'
 import { saveProperty } from '@/lib/store'
+import { uploadPropertyImages } from '@/lib/supabase'
 
 type ScanStatus = 'idle' | 'scanning' | 'scanned' | 'error'
 
@@ -95,6 +97,15 @@ function resizeImage(file: File, maxDimension = 1600, quality = 0.85): Promise<s
   })
 }
 
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, base64] = dataUrl.split(',')
+  const mime = header.match(/data:(.*?);base64/)?.[1] ?? 'image/jpeg'
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new Blob([bytes], { type: mime })
+}
+
 function normalizeWhatsapp(raw: string): string {
   const digits = raw.replace(/\D/g, '')
   if (!digits) return ''
@@ -132,6 +143,7 @@ export default function ImportarPage() {
   const [status, setStatus] = useState<ScanStatus>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
+  const [extraPhotos, setExtraPhotos] = useState<File[]>([])
   const [publishing, setPublishing] = useState(false)
   const [publishError, setPublishError] = useState<string | null>(null)
 
@@ -192,6 +204,7 @@ export default function ImportarPage() {
     setStatus('idle')
     setErrorMessage(null)
     setForm(emptyForm)
+    setExtraPhotos([])
     if (cameraInputRef.current) cameraInputRef.current.value = ''
     if (galleryInputRef.current) galleryInputRef.current.value = ''
   }
@@ -214,8 +227,15 @@ export default function ImportarPage() {
     ].slice(0, 5)
 
     try {
+      const filesToUpload = [
+        ...(imagePreview ? [dataUrlToBlob(imagePreview)] : []),
+        ...extraPhotos,
+      ]
+      const uploadedImages =
+        filesToUpload.length > 0 ? await uploadPropertyImages(filesToUpload) : []
+
       await saveProperty({
-        image: imagePreview || '/images/depto-uabc.png',
+        images: uploadedImages.length > 0 ? uploadedImages : ['/images/depto-uabc.png'],
         price: Number(form.precio) || 0,
         title: form.titulo || `Propiedad en ${form.zona || 'Mexicali'}`,
         location: `${form.zona || 'Mexicali'}, Mexicali`,
@@ -453,6 +473,13 @@ export default function ImportarPage() {
                 placeholder="Resumen de la publicación..."
                 className="w-full resize-none rounded-xl border border-input bg-background px-4 py-2.5 text-sm text-foreground outline-none ring-ring/40 placeholder:text-muted-foreground focus-visible:ring-2"
               />
+            </FormField>
+
+            <FormField
+              label="Fotos adicionales"
+              hint="La captura escaneada ya se incluye como primera foto"
+            >
+              <PhotoPicker photos={extraPhotos} onChange={setExtraPhotos} />
             </FormField>
           </div>
         )}

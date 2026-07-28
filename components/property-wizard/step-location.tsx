@@ -2,6 +2,7 @@ import { mexicaliZones } from '@/lib/data'
 import { FormField } from './form-field'
 import { SelectInput } from './select-input'
 import { ChipRadioGroup } from './chip-radio-group'
+import { PhotoPicker } from './photo-picker'
 import type { PropertyFormData } from './types'
 
 const propertyTypes = ['Departamento', 'Casa', 'Cuarto', 'Estudio']
@@ -16,6 +17,10 @@ export function StepLocation({
 }) {
   return (
     <div className="space-y-5">
+      <FormField label="Fotos de la propiedad" hint="Sube una o varias fotos reales">
+        <PhotoPicker photos={data.photos} onChange={(photos) => update({ photos })} />
+      </FormField>
+
       <FormField label="Título o Tipo de Propiedad">
         <SelectInput
           value={data.propertyType}

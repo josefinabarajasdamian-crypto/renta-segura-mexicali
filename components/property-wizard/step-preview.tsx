@@ -1,4 +1,7 @@
-import { BedDouble, Bath, Car, Snowflake, Zap, MapPin, CircleCheck } from 'lucide-react'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { BedDouble, Bath, Car, Snowflake, Zap, MapPin, CircleCheck, ImageOff } from 'lucide-react'
 import type { PropertyFormData } from './types'
 
 function formatPrice(value: string) {
@@ -8,6 +11,16 @@ function formatPrice(value: string) {
 }
 
 export function StepPreview({ data }: { data: PropertyFormData }) {
+  const [previews, setPreviews] = useState<string[]>([])
+
+  useEffect(() => {
+    const urls = data.photos.map((file) => URL.createObjectURL(file))
+    setPreviews(urls)
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [data.photos])
+
   const includedServices = Object.entries({
     Agua: data.servicesIncluded.water,
     Internet: data.servicesIncluded.internet,
@@ -24,6 +37,23 @@ export function StepPreview({ data }: { data: PropertyFormData }) {
       </p>
 
       <article className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        {previews.length > 0 ? (
+          <div className="grid grid-cols-4 gap-1 p-1">
+            {previews.slice(0, 4).map((url, i) => (
+              <img
+                key={url}
+                src={url}
+                alt={`Foto ${i + 1}`}
+                className="aspect-square w-full rounded-lg object-cover"
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-2 border-b border-dashed border-border p-4 text-xs text-muted-foreground">
+            <ImageOff className="size-4" />
+            No agregaste fotos todavía (paso 1)
+          </div>
+        )}
         <div className="border-b border-border bg-primary/5 p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-primary">
             {data.propertyType || 'Tipo de propiedad'}

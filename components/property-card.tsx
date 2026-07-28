@@ -25,10 +25,15 @@ export function PropertyCard({ property }: { property: Property }) {
         aria-label={`Ver detalles de ${property.title}`}
       >
         <img
-          src={property.image || '/placeholder.svg'}
+          src={property.images[0] || '/placeholder.svg'}
           alt={property.title}
           className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
+        {property.images.length > 1 && (
+          <span className="absolute right-3 top-3 rounded-full bg-background/85 px-2 py-0.5 text-[0.7rem] font-semibold text-foreground shadow-sm backdrop-blur">
+            +{property.images.length - 1} fotos
+          </span>
+        )}
         <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-accent-foreground shadow-md">
           <BadgeCheck className="size-3.5" />
           Dueño Verificado

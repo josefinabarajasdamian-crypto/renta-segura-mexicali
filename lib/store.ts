@@ -7,7 +7,7 @@ export type PropertyStatus = 'Disponible' | 'En Trato' | 'Rentado'
 
 export interface Property {
   id: string
-  image: string
+  images: string[]
   price: number
   title: string
   location: string
@@ -49,6 +49,7 @@ export type NewDemand = Omit<Demand, 'id' | 'createdAt'>
 interface PropertyRow {
   id: string
   image: string
+  images: string[] | null
   price: number
   title: string
   location: string
@@ -84,7 +85,7 @@ interface DemandRow {
 function rowToProperty(row: PropertyRow): Property {
   return {
     id: row.id,
-    image: row.image,
+    images: row.images && row.images.length > 0 ? row.images : row.image ? [row.image] : [],
     price: row.price,
     title: row.title,
     location: row.location,
@@ -109,7 +110,8 @@ function rowToProperty(row: PropertyRow): Property {
 
 function propertyToRow(input: NewProperty) {
   return {
-    image: input.image,
+    image: input.images[0] ?? '',
+    images: input.images,
     price: input.price,
     title: input.title,
     location: input.location,
