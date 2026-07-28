@@ -71,7 +71,7 @@ const emptyForm: FormState = {
   descripcion: '',
 }
 
-function resizeImage(file: File, maxDimension = 1600, quality = 0.85): Promise<string> {
+function resizeImage(file: File, maxDimension = 1024, quality = 0.75): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onerror = () => reject(new Error('No se pudo leer el archivo'))
