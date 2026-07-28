@@ -8,6 +8,7 @@ import { DemandCard } from '@/components/demand-card'
 import { DemandFormModal } from '@/components/demand-form-modal'
 import { Toast, useToast } from '@/components/ui/toast'
 import { useProperties, useDemands } from '@/lib/store'
+import { usePublicProfiles } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 type View = 'directorio' | 'muro'
@@ -28,6 +29,9 @@ export function ListingsSection() {
   const [showDemandForm, setShowDemandForm] = useState(false)
   const { properties, loading: propertiesLoading, error: propertiesError } = useProperties()
   const { demands, loading: demandsLoading, error: demandsError } = useDemands()
+  const owners = usePublicProfiles(
+    properties.map((p) => p.userId).filter((id): id is string => Boolean(id)),
+  )
   const toast = useToast()
 
   return (
@@ -88,7 +92,11 @@ export function ListingsSection() {
           ) : (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {properties.map((property) => (
-                <PropertyCard key={property.id} property={property} />
+                <PropertyCard
+                  key={property.id}
+                  property={property}
+                  owner={property.userId ? owners[property.userId] : undefined}
+                />
               ))}
             </div>
           )}

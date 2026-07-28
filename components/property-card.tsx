@@ -1,7 +1,18 @@
 import Link from 'next/link'
-import { BadgeCheck, MapPin } from 'lucide-react'
+import { BadgeCheck, MapPin, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Property } from '@/lib/store'
+import type { PublicProfile } from '@/lib/auth'
+
+function ownerInitials(name: string) {
+  return name
+    .split(' ')
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+}
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -11,7 +22,7 @@ function WhatsAppIcon({ className }: { className?: string }) {
   )
 }
 
-export function PropertyCard({ property }: { property: Property }) {
+export function PropertyCard({ property, owner }: { property: Property; owner?: PublicProfile }) {
   const message = encodeURIComponent(
     `Hola, vi tu propiedad "${property.title}" en Renta Segura Mexicali y me interesa. ¿Sigue disponible?`,
   )
@@ -60,6 +71,22 @@ export function PropertyCard({ property }: { property: Property }) {
             {property.location}
           </p>
         </div>
+
+        {owner?.fullName && (
+          <Link
+            href={`/perfil/${owner.id}`}
+            className="group/owner -mx-1 flex items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-muted"
+          >
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.65rem] font-bold text-primary">
+              {ownerInitials(owner.fullName)}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
+              {owner.fullName}
+            </span>
+            {owner.isVerified && <BadgeCheck className="size-3.5 shrink-0 text-accent" />}
+            <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover/owner:translate-x-0.5" />
+          </Link>
+        )}
 
         <div className="flex flex-wrap gap-1.5">
           {property.tags.map((tag) => (
