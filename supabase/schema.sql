@@ -105,24 +105,57 @@ end $$;
 -- Se insertan solo si no existe ya una fila con el mismo título/mensaje.
 -- ============================================================
 insert into public.properties
-  (image, price, title, location, zone, tags, whatsapp, status, bedrooms, bathrooms, cooling_type)
+  (image, price, title, location, zone, tags, whatsapp, status, bedrooms, bathrooms, cooling_type,
+   deposit, contract_duration, parking, pets_policy, electricity_rate, description)
 select * from (values
   ('/images/depto-uabc.png', 6500, 'Departamento 2 Recámaras a 5 min de UABC Central',
    'Fracc. Villafontana, cerca de UABC', 'UABC Central',
    array['2 Minisplits', 'Servicios Incluidos', 'Acepta Mascotas'], '526861234567',
-   'Disponible', 2, 1, 'Minisplit Inverter'),
+   'Disponible', 2, 1, '2 Minisplits Inverter (1.5 Toneladas cada uno)',
+   6500, 'Mínimo 6 meses / 1 año', '1 Cajón dentro de privada con reja eléctrica',
+   'Acepta gato o perro chico', 'CFE Independiente',
+   'Departamento amueblado a 5 minutos de UABC Central. Incluye agua e internet; luz CFE independiente.'),
   ('/images/casa-prohogar.png', 8900, 'Casa 3 Recámaras con cochera en Prohogar',
    'Col. Pro Hogar, Mexicali', 'Prohogar',
    array['3 Recámaras', 'Cochera Techada', 'Patio Amplio'], '526862345678',
-   'En Trato', 3, 2, 'Minisplit Inverter'),
+   'En Trato', 3, 2, '3 Minisplits Inverter en recámaras y sala',
+   8900, 'Mínimo 1 año', 'Cochera techada para 2 autos',
+   'Acepta mascotas con patio amplio', 'CFE Independiente',
+   'Casa amplia con patio y cochera techada en Prohogar. Incluye agua; luz e internet independientes.'),
   ('/images/studio-palaco.png', 4800, 'Studio amueblado ideal para 1 persona en Palaco',
    'Zona Palaco, Mexicali', 'Palaco',
    array['Amueblado', '1 Minisplit', 'Wifi Incluido'], '526863456789',
-   'Rentado', 1, 1, 'Minisplit Inverter')
-) as seed(image, price, title, location, zone, tags, whatsapp, status, bedrooms, bathrooms, cooling_type)
+   'Rentado', 1, 1, '1 Minisplit Inverter (1 Tonelada)',
+   4800, 'Mínimo 6 meses', '1 Cajón techado',
+   'No acepta', 'CFE Independiente',
+   'Studio amueblado ideal para una persona en Palaco. Incluye agua, internet y wifi.')
+) as seed(image, price, title, location, zone, tags, whatsapp, status, bedrooms, bathrooms, cooling_type,
+   deposit, contract_duration, parking, pets_policy, electricity_rate, description)
 where not exists (
   select 1 from public.properties p where p.title = seed.title
 );
+
+-- Si las 3 propiedades semilla ya existían de una corrida anterior del
+-- script (sin estos campos), se completan aquí también.
+update public.properties p set
+  deposit = seed.deposit,
+  contract_duration = seed.contract_duration,
+  parking = seed.parking,
+  pets_policy = seed.pets_policy,
+  electricity_rate = seed.electricity_rate,
+  description = seed.description
+from (values
+  ('Departamento 2 Recámaras a 5 min de UABC Central', 6500, 'Mínimo 6 meses / 1 año',
+   '1 Cajón dentro de privada con reja eléctrica', 'Acepta gato o perro chico', 'CFE Independiente',
+   'Departamento amueblado a 5 minutos de UABC Central. Incluye agua e internet; luz CFE independiente.'),
+  ('Casa 3 Recámaras con cochera en Prohogar', 8900, 'Mínimo 1 año',
+   'Cochera techada para 2 autos', 'Acepta mascotas con patio amplio', 'CFE Independiente',
+   'Casa amplia con patio y cochera techada en Prohogar. Incluye agua; luz e internet independientes.'),
+  ('Studio amueblado ideal para 1 persona en Palaco', 4800, 'Mínimo 6 meses',
+   '1 Cajón techado', 'No acepta', 'CFE Independiente',
+   'Studio amueblado ideal para una persona en Palaco. Incluye agua, internet y wifi.')
+) as seed(title, deposit, contract_duration, parking, pets_policy, electricity_rate, description)
+where p.title = seed.title and p.deposit is null;
 
 insert into public.demands (name, anonymous, message, budget, zone, tenants)
 select * from (values
