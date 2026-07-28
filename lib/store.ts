@@ -172,6 +172,7 @@ export async function getProperties(): Promise<Property[]> {
   const { data, error } = await client
     .from('properties')
     .select('*')
+    .eq('needs_review', false)
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data as PropertyRow[]).map(rowToProperty)
