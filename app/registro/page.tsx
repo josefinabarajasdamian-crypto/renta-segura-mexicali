@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ShieldCheck, Loader2, TriangleAlert, MailCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { signUp, type UserRole } from '@/lib/auth'
+import { signUp, useAuth, type UserRole } from '@/lib/auth'
 
 const roleOptions: { value: UserRole; label: string }[] = [
   { value: 'inquilino', label: 'Busco renta (Inquilino)' },
@@ -15,6 +15,7 @@ const roleOptions: { value: UserRole; label: string }[] = [
 
 export default function RegistroPage() {
   const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -23,6 +24,12 @@ export default function RegistroPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [needsConfirmation, setNeedsConfirmation] = useState(false)
+
+  useEffect(() => {
+    if (!authLoading && user && !needsConfirmation) {
+      router.replace('/dashboard')
+    }
+  }, [authLoading, user, needsConfirmation, router])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -41,6 +48,15 @@ export default function RegistroPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (authLoading || (user && !needsConfirmation)) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Cargando...
+      </div>
+    )
   }
 
   return (
