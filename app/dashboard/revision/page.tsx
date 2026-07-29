@@ -10,6 +10,7 @@ import {
   Loader2,
   MapPin,
   Pencil,
+  PlayCircle,
   ScanLine,
   Trash2,
   TriangleAlert,
@@ -238,6 +239,21 @@ export default function RevisionPage() {
   const { properties, demands, loading, error } = usePendingReview()
   const toast = useToast()
   const [bulkBusy, setBulkBusy] = useState<'properties' | 'demands' | null>(null)
+  const [runningExtraction, setRunningExtraction] = useState(false)
+
+  async function handleRunExtraction() {
+    setRunningExtraction(true)
+    try {
+      const res = await fetch('/api/apify/run', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'No se pudo iniciar la extracción')
+      toast.show(data.message || 'Extracción iniciada')
+    } catch (err) {
+      toast.show(err instanceof Error ? err.message : 'No se pudo iniciar la extracción')
+    } finally {
+      setRunningExtraction(false)
+    }
+  }
 
   async function handleApproveProperty(
     id: string,
@@ -319,7 +335,7 @@ export default function RevisionPage() {
           >
             <ArrowLeft className="size-4" />
           </Link>
-          <div>
+          <div className="min-w-0 flex-1">
             <h1 className="font-display text-lg font-extrabold tracking-tight text-foreground">
               Revisar publicaciones importadas
             </h1>
@@ -328,6 +344,20 @@ export default function RevisionPage() {
               principal.
             </p>
           </div>
+          <Button
+            size="sm"
+            className="shrink-0 gap-1.5"
+            disabled={runningExtraction}
+            onClick={handleRunExtraction}
+          >
+            {runningExtraction ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <PlayCircle className="size-3.5" />
+            )}
+            <span className="hidden sm:inline">Ejecutar extracción</span>
+            <span className="sm:hidden">Ejecutar</span>
+          </Button>
         </div>
       </header>
 
