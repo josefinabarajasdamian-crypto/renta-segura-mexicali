@@ -1,4 +1,4 @@
-import type { Property } from '@/lib/store'
+import type { Landmark, Property } from '@/lib/store'
 
 export interface BudgetOption {
   label: string
@@ -29,14 +29,24 @@ export const zoneOptions = [
   'Villafontana',
 ]
 
+// Quita acentos y pasa a minúsculas, para que "recamara"/"recámara" o
+// "zona rio"/"Zona Río" hagan match igual — muy común al escribir rápido
+// desde el celular.
+function normalize(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
 export function getBudgetOption(label: string | null): BudgetOption {
   return budgetOptions.find((b) => b.label === label) ?? budgetOptions[0]
 }
 
 export function matchesZone(property: Property, zone: string | null): boolean {
   if (!zone || zone === 'Cualquier zona') return true
-  const haystack = `${property.zone} ${property.location}`.toLowerCase()
-  return haystack.includes(zone.toLowerCase())
+  const haystack = normalize(`${property.zone} ${property.location}`)
+  return haystack.includes(normalize(zone))
 }
 
 export function matchesBudget(property: Property, budgetLabel: string | null): boolean {
@@ -69,6 +79,7 @@ function wordToNumber(raw: string): number | null {
 
 const NUM_TOKEN = '(\\d+|un|uno|una|dos|tres|cuatro|cinco|seis)'
 
+// Espera texto ya normalizado (sin acentos, minúsculas).
 function extractCount(text: string, unitPattern: string): { value: number | null; rest: string } {
   const match = text.match(new RegExp(`\\b${NUM_TOKEN}\\s*${unitPattern}\\b`, 'i'))
   if (!match || match.index == null) return { value: null, rest: text }
@@ -78,49 +89,79 @@ function extractCount(text: string, unitPattern: string): { value: number | null
   return { value: wordToNumber(match[1]), rest }
 }
 
+// Traduce referencias como "cerca del Hospital General" a la zona real
+// que hay que buscar (Landmark.zoneKeyword), quitando esa frase del resto
+// del texto libre. Usa el alias más largo que aparezca, para que un
+// alias más específico no quede opacado por uno más corto contenido en él.
+// Espera texto ya normalizado.
+function extractLandmark(
+  text: string,
+  landmarks: Landmark[],
+): { zoneKeyword: string | null; rest: string } {
+  const sorted = [...landmarks].sort((a, b) => b.alias.length - a.alias.length)
+  for (const lm of sorted) {
+    const alias = normalize(lm.alias)
+    const idx = text.indexOf(alias)
+    if (idx !== -1) {
+      const rest = (text.slice(0, idx) + text.slice(idx + alias.length)).replace(/\s+/g, ' ').trim()
+      return { zoneKeyword: lm.zoneKeyword, rest }
+    }
+  }
+  return { zoneKeyword: null, rest: text }
+}
+
 // "2 recámaras" y "una recámara" deben filtrar distinto — un simple
 // "el texto contiene 'recámara'" hace match con ambos (recámara es
 // substring de recámaras) sin importar la cantidad. Se detecta la
 // cantidad mencionada y se compara contra el dato real (bedrooms/
 // bathrooms) en vez de solo buscarla como texto.
-export function parseSmartQuery(query: string): {
+export function parseSmartQuery(
+  query: string,
+  landmarks: Landmark[] = [],
+): {
   bedrooms: number | null
   bathrooms: number | null
+  zoneKeyword: string | null
   text: string
 } {
-  const bedroomsResult = extractCount(query, 'rec[aá]maras?')
-  const bathroomsResult = extractCount(bedroomsResult.rest, 'ba[ñn]os?')
+  const normalized = normalize(query)
+  const bedroomsResult = extractCount(normalized, 'recamaras?')
+  const bathroomsResult = extractCount(bedroomsResult.rest, 'banos?')
+  const landmarkResult = extractLandmark(bathroomsResult.rest, landmarks)
   return {
     bedrooms: bedroomsResult.value,
     bathrooms: bathroomsResult.value,
-    text: bathroomsResult.rest,
+    zoneKeyword: landmarkResult.zoneKeyword,
+    text: landmarkResult.rest,
   }
 }
 
 export function matchesQuery(property: Property, query: string | null): boolean {
-  const q = query?.trim().toLowerCase()
+  const q = query?.trim()
   if (!q) return true
-  const haystack = [
-    property.title,
-    property.description,
-    property.location,
-    property.zone,
-    ...property.tags,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-  return q.split(/\s+/).every((word) => haystack.includes(word))
+  const haystack = normalize(
+    [property.title, property.description, property.location, property.zone, ...property.tags]
+      .filter(Boolean)
+      .join(' '),
+  )
+  return normalize(q)
+    .split(/\s+/)
+    .every((word) => haystack.includes(word))
 }
 
 export function filterProperties(
   properties: Property[],
   filters: { q?: string | null; zone?: string | null; budget?: string | null },
+  landmarks: Landmark[] = [],
 ): Property[] {
-  const { bedrooms, bathrooms, text } = parseSmartQuery(filters.q?.trim() ?? '')
+  const { bedrooms, bathrooms, zoneKeyword, text } = parseSmartQuery(
+    filters.q?.trim() ?? '',
+    landmarks,
+  )
   return properties.filter((p) => {
     if (bedrooms != null && p.bedrooms !== bedrooms) return false
     if (bathrooms != null && p.bathrooms !== bathrooms) return false
+    if (zoneKeyword && !matchesZone(p, zoneKeyword)) return false
     return matchesQuery(p, text) && matchesZone(p, filters.zone ?? null) && matchesBudget(p, filters.budget ?? null)
   })
 }
