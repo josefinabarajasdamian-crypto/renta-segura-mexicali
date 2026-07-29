@@ -1,4 +1,3 @@
-import { Suspense } from 'react'
 import { SiteHeader } from '@/components/site-header'
 import { HeroSection } from '@/components/hero-section'
 import { ListingsSection } from '@/components/listings-section'
@@ -10,9 +9,7 @@ export default function HomePage() {
       <SiteHeader />
       <main className="flex-1">
         <HeroSection />
-        <Suspense fallback={null}>
-          <ListingsSection />
-        </Suspense>
+        <ListingsSection />
       </main>
       <SiteFooter />
     </div>
