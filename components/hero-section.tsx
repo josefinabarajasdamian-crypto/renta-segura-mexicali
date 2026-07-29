@@ -1,28 +1,37 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Search, MapPin, Wallet, BadgeCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-
-const zones = [
-  'Cualquier zona',
-  'UABC / Villafontana',
-  'Palaco',
-  'Prohogar',
-  'Zona Industrial',
-  'Nueva',
-  'Centro Cívico',
-]
-
-const budgets = [
-  'Sin límite',
-  'Hasta $4,000',
-  'Hasta $6,000',
-  'Hasta $8,000',
-  'Hasta $10,000',
-  'Más de $10,000',
-]
+import { useProperties } from '@/lib/store'
+import { budgetOptions, propertyZones } from '@/lib/search-filters'
 
 export function HeroSection() {
+  const router = useRouter()
+  const { properties } = useProperties()
+  const zones = ['Cualquier zona', ...propertyZones(properties)]
+
+  const [query, setQuery] = useState('')
+  const [zone, setZone] = useState(zones[0])
+  const [budget, setBudget] = useState(budgetOptions[0].label)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const params = new URLSearchParams()
+    if (query.trim()) params.set('q', query.trim())
+    if (zone !== 'Cualquier zona') params.set('zone', zone)
+    if (budget !== budgetOptions[0].label) params.set('budget', budget)
+
+    const search = params.toString()
+    router.push(`/${search ? `?${search}` : ''}#directorio`, { scroll: false })
+    // router.push con hash no siempre hace scroll si ya estamos en "/", así
+    // que lo forzamos nosotros para que sí se sienta como una búsqueda real.
+    requestAnimationFrame(() => {
+      document.getElementById('directorio')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+
   return (
     <section className="relative overflow-hidden bg-secondary/50">
       <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
@@ -41,16 +50,31 @@ export function HeroSection() {
 
         <form
           className="mx-auto mt-8 max-w-3xl rounded-2xl border border-border bg-card p-3 shadow-lg shadow-primary/5"
-          onSubmit={(e) => e.preventDefault()}
+          onSubmit={handleSubmit}
         >
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="flex items-center gap-2 rounded-xl px-3 py-2 transition-colors hover:bg-muted/60">
+            <Search className="size-5 shrink-0 text-primary" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Recámaras, colonia, amenidades... (ej. '2 recámaras UABC')"
+              className="w-full bg-transparent text-sm font-medium text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground"
+            />
+          </label>
+
+          <div className="mt-1 flex flex-col gap-2 border-t border-border pt-2 sm:flex-row sm:items-center">
             <label className="flex flex-1 items-center gap-2 rounded-xl px-3 py-2 transition-colors hover:bg-muted/60">
               <MapPin className="size-5 shrink-0 text-primary" />
               <span className="flex flex-1 flex-col text-left">
                 <span className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
                   Zona
                 </span>
-                <select className="w-full cursor-pointer bg-transparent text-sm font-medium text-foreground outline-none">
+                <select
+                  value={zone}
+                  onChange={(e) => setZone(e.target.value)}
+                  className="w-full cursor-pointer bg-transparent text-sm font-medium text-foreground outline-none"
+                >
                   {zones.map((z) => (
                     <option key={z}>{z}</option>
                   ))}
@@ -66,9 +90,13 @@ export function HeroSection() {
                 <span className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
                   Presupuesto máximo
                 </span>
-                <select className="w-full cursor-pointer bg-transparent text-sm font-medium text-foreground outline-none">
-                  {budgets.map((b) => (
-                    <option key={b}>{b}</option>
+                <select
+                  value={budget}
+                  onChange={(e) => setBudget(e.target.value)}
+                  className="w-full cursor-pointer bg-transparent text-sm font-medium text-foreground outline-none"
+                >
+                  {budgetOptions.map((b) => (
+                    <option key={b.label}>{b.label}</option>
                   ))}
                 </select>
               </span>
