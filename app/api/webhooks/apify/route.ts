@@ -339,7 +339,12 @@ export async function POST(req: Request) {
             source: 'apify_facebook',
             needs_review: true,
           })
-          if (error) throw error
+          // 23505 = unique_violation: dos posts idénticos se procesaron al
+          // mismo tiempo (concurrencia) y ya se guardó el otro primero.
+          if (error) {
+            if (error.code === '23505') return 'duplicate' as const
+            throw error
+          }
         } else {
           // Re-sube las fotos a nuestro propio bucket en vez de guardar los
           // links de Facebook (esos expiran a los pocos días).
@@ -370,7 +375,10 @@ export async function POST(req: Request) {
             needs_review: true,
             description: post.text || null,
           })
-          if (error) throw error
+          if (error) {
+            if (error.code === '23505') return 'duplicate' as const
+            throw error
+          }
         }
         return 'saved' as const
       },

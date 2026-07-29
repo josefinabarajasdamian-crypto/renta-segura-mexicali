@@ -207,6 +207,27 @@ create policy "demands_delete_own" on public.demands
   for delete to authenticated using (user_id = auth.uid() or user_id is null);
 
 -- ============================================================
+-- Evita duplicados de publicaciones importadas (Apify/Facebook), incluso
+-- si el mismo post se procesa dos veces al mismo tiempo. Antes de crear el
+-- índice único, se borran los duplicados exactos que ya existan (se queda
+-- con el más antiguo de cada uno).
+-- ============================================================
+delete from public.properties p
+using public.properties p2
+where p.description is not null
+  and p.description = p2.description
+  and p.created_at > p2.created_at;
+
+delete from public.demands d
+using public.demands d2
+where d.message <> ''
+  and d.message = d2.message
+  and d.created_at > d2.created_at;
+
+create unique index if not exists properties_description_unique on public.properties (description);
+create unique index if not exists demands_message_unique on public.demands (message);
+
+-- ============================================================
 -- Realtime: publica los cambios de estas tablas (idempotente)
 -- ============================================================
 do $$
