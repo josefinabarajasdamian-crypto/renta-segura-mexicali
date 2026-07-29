@@ -9,7 +9,7 @@ export interface Property {
   id: string
   userId?: string
   images: string[]
-  price: number
+  price: number | null
   title: string
   location: string
   zone: string
@@ -38,7 +38,7 @@ export interface Demand {
   name: string
   anonymous?: boolean
   message: string
-  budget: string
+  budget: string | null
   zone: string
   tenants: string
   createdAt: string
@@ -57,7 +57,7 @@ interface PropertyRow {
   user_id: string | null
   image: string
   images: string[] | null
-  price: number
+  price: number | null
   title: string
   location: string
   zone: string
@@ -86,7 +86,7 @@ interface DemandRow {
   name: string
   anonymous: boolean
   message: string
-  budget: string
+  budget: string | null
   zone: string
   tenants: string
   created_at: string
@@ -245,9 +245,20 @@ export async function getPendingProperties(): Promise<Property[]> {
   return (data as PropertyRow[]).map(rowToProperty)
 }
 
-export async function approveProperty(id: string): Promise<void> {
+export async function approveProperty(
+  id: string,
+  overrides: { title: string; price: number | null; zone: string },
+): Promise<void> {
   const client = requireClient()
-  const { error } = await client.from('properties').update({ needs_review: false }).eq('id', id)
+  const { error } = await client
+    .from('properties')
+    .update({
+      needs_review: false,
+      title: overrides.title,
+      price: overrides.price,
+      zone: overrides.zone,
+    })
+    .eq('id', id)
   if (error) throw error
 }
 

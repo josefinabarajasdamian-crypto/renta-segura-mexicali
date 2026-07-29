@@ -8,6 +8,7 @@ import {
   Check,
   Loader2,
   MapPin,
+  Pencil,
   ScanLine,
   Trash2,
   TriangleAlert,
@@ -34,16 +35,23 @@ function SourceBadge({ source }: { source?: string }) {
   )
 }
 
+const inputClass =
+  'h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none ring-ring/40 placeholder:text-muted-foreground focus-visible:ring-2'
+
 function PendingPropertyCard({
   property,
   onApprove,
   onReject,
 }: {
   property: Property
-  onApprove: (id: string) => void
+  onApprove: (id: string, overrides: { title: string; price: number | null; zone: string }) => void
   onReject: (id: string) => void
 }) {
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [title, setTitle] = useState(property.title)
+  const [price, setPrice] = useState(property.price != null ? String(property.price) : '')
+  const [zone, setZone] = useState(property.zone)
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm sm:flex-row">
@@ -53,15 +61,64 @@ function PendingPropertyCard({
         className="h-40 w-full shrink-0 rounded-xl object-cover sm:h-auto sm:w-48"
       />
       <div className="flex flex-1 flex-col gap-2">
-        <SourceBadge source={property.source} />
-        <p className="font-display text-lg font-extrabold text-foreground">
-          {property.price > 0 ? `$${property.price.toLocaleString('es-MX')} MXN / mes` : 'Sin precio detectado'}
-        </p>
-        <h3 className="text-sm font-semibold text-foreground">{property.title}</h3>
-        <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-          <MapPin className="size-3.5" />
-          {property.location || 'Zona no detectada'}
-        </p>
+        <div className="flex items-start justify-between gap-2">
+          <SourceBadge source={property.source} />
+          <button
+            type="button"
+            onClick={() => setEditing((v) => !v)}
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Pencil className="size-3.5" />
+            {editing ? 'Listo' : 'Editar'}
+          </button>
+        </div>
+
+        {editing ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-muted-foreground">Título</label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">Precio (MXN)</label>
+                <input
+                  type="number"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="Sin precio"
+                  className={inputClass}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">Zona</label>
+                <input
+                  type="text"
+                  value={zone}
+                  onChange={(e) => setZone(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="font-display text-lg font-extrabold text-foreground">
+              {price ? `$${Number(price).toLocaleString('es-MX')} MXN / mes` : 'Sin precio detectado'}
+            </p>
+            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+            <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <MapPin className="size-3.5" />
+              {zone || 'Zona no detectada'}
+            </p>
+          </>
+        )}
+
         {property.whatsapp && (
           <p className="text-xs text-muted-foreground">WhatsApp: {property.whatsapp}</p>
         )}
@@ -77,7 +134,12 @@ function PendingPropertyCard({
             disabled={busy !== null}
             onClick={async () => {
               setBusy('approve')
-              await onApprove(property.id)
+              const trimmedPrice = price.trim()
+              await onApprove(property.id, {
+                title: title.trim() || property.title,
+                price: trimmedPrice ? Number(trimmedPrice) : null,
+                zone: zone.trim(),
+              })
             }}
           >
             {busy === 'approve' ? (
@@ -129,7 +191,8 @@ function PendingDemandCard({
         {demand.message}
       </p>
       <p className="text-xs text-muted-foreground">
-        Presupuesto: {demand.budget} · Zona: {demand.zone || 'No detectada'}
+        Presupuesto: {demand.budget ? `$${demand.budget}` : 'No especificado'} · Zona:{' '}
+        {demand.zone || 'No detectada'}
       </p>
       <div className="mt-1 flex gap-2">
         <Button
@@ -174,9 +237,12 @@ export default function RevisionPage() {
   const { properties, demands, loading, error } = usePendingReview()
   const toast = useToast()
 
-  async function handleApproveProperty(id: string) {
+  async function handleApproveProperty(
+    id: string,
+    overrides: { title: string; price: number | null; zone: string },
+  ) {
     try {
-      await approveProperty(id)
+      await approveProperty(id, overrides)
       toast.show('Propiedad publicada en el Directorio')
     } catch (err) {
       toast.show(err instanceof Error ? err.message : 'No se pudo publicar')

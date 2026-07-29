@@ -272,10 +272,18 @@ export default function PropertyDetailPage() {
               <div className="flex items-end justify-between border-b border-border pb-4">
                 <div>
                   <p className="font-display text-3xl font-extrabold tracking-tight text-foreground">
-                    {'$'}
-                    {p.price.toLocaleString('es-MX')}
+                    {p.price != null ? (
+                      <>
+                        {'$'}
+                        {p.price.toLocaleString('es-MX')}
+                      </>
+                    ) : (
+                      'Consultar'
+                    )}
                   </p>
-                  <p className="text-sm font-medium text-muted-foreground">MXN / mes</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {p.price != null ? 'MXN / mes' : 'Precio no publicado'}
+                  </p>
                 </div>
                 <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2.5 py-1 text-xs font-semibold text-accent">
                   <BadgeCheck className="size-3.5" />
@@ -336,10 +344,18 @@ export default function PropertyDetailPage() {
         <div className="mx-auto flex max-w-6xl items-center gap-3">
           <div className="shrink-0">
             <p className="font-display text-lg font-extrabold leading-none text-foreground">
-              {'$'}
-              {p.price.toLocaleString('es-MX')}
+              {p.price != null ? (
+                <>
+                  {'$'}
+                  {p.price.toLocaleString('es-MX')}
+                </>
+              ) : (
+                'Consultar'
+              )}
             </p>
-            <p className="text-xs text-muted-foreground">MXN / mes</p>
+            <p className="text-xs text-muted-foreground">
+              {p.price != null ? 'MXN / mes' : 'Precio no publicado'}
+            </p>
           </div>
           <div className="flex-1">
             <WhatsAppCta phone={p.whatsapp} message={whatsappMessage} label="WhatsApp" showPreview={false} />

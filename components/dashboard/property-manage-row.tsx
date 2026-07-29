@@ -69,9 +69,15 @@ export function PropertyManageRow({
           {property.title}
         </p>
         <p className="mt-0.5 text-sm font-bold text-primary">
-          {'$'}
-          {property.price.toLocaleString('es-MX')} MXN
-          <span className="font-normal text-muted-foreground"> / mes</span>
+          {property.price != null ? (
+            <>
+              {'$'}
+              {property.price.toLocaleString('es-MX')} MXN
+              <span className="font-normal text-muted-foreground"> / mes</span>
+            </>
+          ) : (
+            'Precio a consultar'
+          )}
         </p>
       </div>
 

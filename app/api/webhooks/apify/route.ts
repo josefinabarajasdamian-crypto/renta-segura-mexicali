@@ -32,6 +32,23 @@ function getPostUserName(post: ApifyPost): string | null {
   return post.user.name || null
 }
 
+// Filtro determinista extra (además del "ignore" que decide Gemini) para
+// no publicar solicitudes de venta en el Muro de Demandas.
+const SALE_KEYWORDS = ['venta', 'terreno', 'traspaso', 'compro', 'remate']
+
+function looksLikeSalePost(text: string | undefined): boolean {
+  if (!text) return false
+  const lower = text.toLowerCase()
+  return SALE_KEYWORDS.some((keyword) => lower.includes(keyword))
+}
+
+// Nunca guardamos 0 como precio real: si la IA no detectó un precio
+// confiable (o dio un número irrisorio), lo dejamos en null.
+function cleanPropertyPrice(price: number | null): number | null {
+  if (price == null || !Number.isFinite(price) || price < 1000) return null
+  return price
+}
+
 // Las fotos vienen dentro de "attachments", en distinta forma según el post
 // tenga una sola foto (photo_image.uri) o varias (image.uri, con un primer
 // elemento "mediaset" que no es una foto en sí).
@@ -46,6 +63,7 @@ function extractAttachmentUrls(post: ApifyPost): string[] {
 }
 
 interface ParsedListing {
+  ignore: boolean
   type: 'PROPERTY' | 'DEMAND'
   title: string | null
   price: number | null
@@ -57,10 +75,13 @@ interface ParsedListing {
   phone: string | null
 }
 
-const EXTRACTION_PROMPT = `Analiza este texto de una publicación de Facebook sobre renta de inmuebles en Mexicali, Baja California.
-Determina si es una OFERTA de renta (alguien ofrece una propiedad) o una BÚSQUEDA (alguien busca dónde rentar).
+const EXTRACTION_PROMPT = `Analiza este texto (y la imagen adjunta, si se te proporciona una) de una publicación de Facebook sobre inmuebles en Mexicali, Baja California.
+
+Determina si es una OFERTA de renta (alguien ofrece una propiedad en renta), una BÚSQUEDA (alguien busca dónde rentar), o si no tiene relación con arrendamiento (venta de propiedades, terrenos, locales comerciales, traspasos, u otro tema).
+
 Responde ÚNICAMENTE con un objeto JSON estricto (sin markdown, sin texto extra) con esta estructura exacta:
 {
+  "ignore": boolean,
   "type": "PROPERTY" | "DEMAND",
   "title": string | null,
   "price": number | null,
@@ -73,12 +94,14 @@ Responde ÚNICAMENTE con un objeto JSON estricto (sin markdown, sin texto extra)
 }
 
 Reglas:
-- "type" es "PROPERTY" si alguien ofrece una propiedad en renta, "DEMAND" si alguien busca dónde rentar.
-- "price" es solo el número en pesos mexicanos, sin símbolos ni comas.
+- "ignore" debe ser true si la publicación es una VENTA de propiedad, terreno o local comercial (no arrendamiento), un traspaso, o no tiene relación con vivienda en renta ni con búsqueda de renta en Mexicali. En ese caso el resto de los campos pueden quedar en null/false.
+- "type" es "PROPERTY" si alguien ofrece una propiedad en RENTA, "DEMAND" si alguien busca dónde rentar. Nunca uses "PROPERTY" para una publicación de venta (esa debe llevar "ignore": true).
+- "price" es solo el número en pesos mexicanos, sin símbolos ni comas. Si el texto da un rango (ej. "6000 a 7000"), usa el valor más alto del rango.
+- Si el precio no aparece claramente en el texto (por ejemplo dice "Inbox", "Precio por privado/inbox", o simplemente no lo menciona), responde "price": null — pero igual genera un "title" limpio y descriptivo con el resto de la información disponible.
+- Si se te proporciona una imagen del volante/publicación y el precio no aparece en el texto, revisa si el precio está escrito en la imagen y úsalo.
 - "zone" es la colonia o fraccionamiento de Mexicali mencionado.
 - "AC_type" describe el equipo de clima mencionado (minisplit, aire central, etc.), o null si no se menciona.
-- "phone" es el número de WhatsApp o celular visible en el texto, o null si no aparece.
-- Si el texto no tiene relación con renta de inmuebles en Mexicali, responde con "type": "DEMAND" y el resto de los campos en null/false.`
+- "phone" es el número de WhatsApp o celular visible en el texto, o null si no aparece.`
 
 interface FetchedImage {
   buffer: Buffer
@@ -298,13 +321,19 @@ export async function POST(req: Request) {
 
         const parsed = await parseWithGemini(post, geminiKey, firstImage)
 
+        // Ventas, terrenos, traspasos, etc. — no es lo que este directorio
+        // publica, así que ni siquiera se guarda como borrador.
+        if (parsed.ignore) return 'ignored' as const
+
         if (parsed.type === 'DEMAND') {
+          if (looksLikeSalePost(post.text)) return 'ignored' as const
+
           const userName = getPostUserName(post)
           const { error } = await admin.from('demands').insert({
             name: userName || 'Usuario de Facebook',
             anonymous: !userName,
             message: post.text || '',
-            budget: parsed.price ? `$${parsed.price}` : 'No especificado',
+            budget: parsed.price != null ? String(parsed.price) : null,
             zone: parsed.zone || 'Mexicali',
             tenants: '1',
             source: 'apify_facebook',
@@ -325,7 +354,7 @@ export async function POST(req: Request) {
 
           const { error } = await admin.from('properties').insert({
             title: parsed.title || 'Publicación importada de Facebook',
-            price: parsed.price || 0,
+            price: cleanPropertyPrice(parsed.price),
             zone: parsed.zone || 'Mexicali',
             location: `${parsed.zone || 'Mexicali'}, Mexicali`,
             image: uploadedUrls[0] || '',
@@ -349,10 +378,12 @@ export async function POST(req: Request) {
 
     let saved = 0
     let duplicates = 0
+    let ignored = 0
     const errors: string[] = []
     for (const result of results) {
       if (result.status === 'fulfilled') {
         if (result.value === 'duplicate') duplicates++
+        else if (result.value === 'ignored') ignored++
         else saved++
       } else {
         console.error('Error procesando post de Apify:', result.reason)
@@ -362,9 +393,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `${saved} publicación(es) guardada(s) como borrador, ${duplicates} ya existían`,
+      message: `${saved} publicación(es) guardada(s) como borrador, ${duplicates} ya existían, ${ignored} ignoradas (venta u otro)`,
       saved,
       duplicates,
+      ignored,
       errors,
     })
   } catch (error) {

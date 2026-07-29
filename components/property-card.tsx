@@ -54,9 +54,15 @@ export function PropertyCard({ property, owner }: { property: Property; owner?: 
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div>
           <p className="font-display text-xl font-extrabold tracking-tight text-foreground">
-            {'$'}
-            {property.price.toLocaleString('es-MX')}
-            <span className="text-sm font-medium text-muted-foreground"> MXN / mes</span>
+            {property.price != null ? (
+              <>
+                {'$'}
+                {property.price.toLocaleString('es-MX')}
+                <span className="text-sm font-medium text-muted-foreground"> MXN / mes</span>
+              </>
+            ) : (
+              'Precio a consultar'
+            )}
           </p>
           <h3 className="mt-1 text-pretty text-sm font-semibold leading-snug text-foreground">
             <Link
