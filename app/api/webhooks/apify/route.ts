@@ -71,7 +71,18 @@ async function fetchImageAsBase64(url: string): Promise<{ data: string; mimeType
   }
 }
 
-async function parseWithGemini(post: ApifyPost, apiKey: string): Promise<ParsedListing> {
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// El tier gratis de Gemini permite pocas solicitudes por minuto (15 para
+// gemini-3.5-flash-lite). Si nos topamos con ese límite (HTTP 429),
+// esperamos el tiempo que la propia API sugiere y reintentamos.
+async function parseWithGemini(
+  post: ApifyPost,
+  apiKey: string,
+  attempt = 1,
+): Promise<ParsedListing> {
   const parts: Array<{ text: string } | { inline_data: { mime_type: string; data: string } }> = [
     { text: `${EXTRACTION_PROMPT}\n\nTexto de la publicación:\n"""${post.text ?? ''}"""` },
   ]
@@ -98,13 +109,46 @@ async function parseWithGemini(post: ApifyPost, apiKey: string): Promise<ParsedL
   )
 
   const data = await response.json()
+
   if (!response.ok) {
+    if (response.status === 429 && attempt <= 3) {
+      const retryInfo = (data?.error?.details as Array<Record<string, unknown>> | undefined)?.find(
+        (d) => typeof d?.retryDelay === 'string',
+      )
+      const retryDelaySeconds = retryInfo ? parseFloat(String(retryInfo.retryDelay)) : NaN
+      const waitMs = (Number.isFinite(retryDelaySeconds) ? retryDelaySeconds : attempt * 5) * 1000
+      await sleep(waitMs)
+      return parseWithGemini(post, apiKey, attempt + 1)
+    }
     throw new Error(data?.error?.message || 'La API de Gemini rechazó la solicitud')
   }
 
   const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text
   if (!rawText) throw new Error('La IA no devolvió contenido para esta publicación')
   return JSON.parse(rawText) as ParsedListing
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = new Array(items.length)
+  let nextIndex = 0
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const current = nextIndex++
+      try {
+        results[current] = { status: 'fulfilled', value: await fn(items[current]) }
+      } catch (reason) {
+        results[current] = { status: 'rejected', reason }
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return results
 }
 
 async function fetchApifyDatasetItems(datasetId: string, token: string): Promise<ApifyPost[]> {
@@ -181,8 +225,12 @@ export async function POST(req: Request) {
 
     const admin = supabaseAdmin
 
-    const results = await Promise.allSettled(
-      posts.map(async (post) => {
+    // Concurrencia limitada para no reventar el límite de 15 solicitudes
+    // por minuto del tier gratis de Gemini.
+    const results = await mapWithConcurrency(
+      posts,
+      3,
+      async (post) => {
         // Evita volver a importar el mismo post de Facebook si el scraper
         // corre otra vez sobre el mismo grupo (el texto del post es el
         // identificador más confiable que tenemos, ya que guardamos el
@@ -232,7 +280,7 @@ export async function POST(req: Request) {
           if (error) throw error
         }
         return 'saved' as const
-      }),
+      },
     )
 
     let saved = 0
