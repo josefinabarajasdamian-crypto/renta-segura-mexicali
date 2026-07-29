@@ -42,6 +42,10 @@ alter table public.properties add column if not exists images text[] not null de
 alter table public.properties add column if not exists source text;
 alter table public.properties add column if not exists needs_review boolean not null default false;
 
+-- Permite guardar price = NULL cuando la IA no pudo detectar un precio
+-- confiable en la publicación importada (antes se guardaba 0).
+alter table public.properties alter column price drop not null;
+
 update public.properties
 set images = array[image]
 where (images is null or array_length(images, 1) is null) and image is not null and image <> '';
@@ -82,6 +86,10 @@ create table if not exists public.demands (
 
 alter table public.demands add column if not exists source text;
 alter table public.demands add column if not exists needs_review boolean not null default false;
+
+-- Permite guardar budget = NULL cuando no se detectó un presupuesto claro
+-- en la publicación importada (antes se guardaba el texto "No especificado").
+alter table public.demands alter column budget drop not null;
 
 -- ============================================================
 -- Perfiles de usuario (Supabase Auth)
