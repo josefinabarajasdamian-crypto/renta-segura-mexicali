@@ -28,6 +28,8 @@ export interface Property {
   electricityRate?: string
   petsPolicy?: string
   description?: string
+  source?: string
+  needsReview?: boolean
 }
 
 export interface Demand {
@@ -40,6 +42,8 @@ export interface Demand {
   zone: string
   tenants: string
   createdAt: string
+  source?: string
+  needsReview?: boolean
 }
 
 export type NewProperty = Omit<Property, 'id' | 'status' | 'createdAt'> & {
@@ -72,6 +76,8 @@ interface PropertyRow {
   electricity_rate: string | null
   pets_policy: string | null
   description: string | null
+  source: string | null
+  needs_review: boolean | null
 }
 
 interface DemandRow {
@@ -84,6 +90,8 @@ interface DemandRow {
   zone: string
   tenants: string
   created_at: string
+  source: string | null
+  needs_review: boolean | null
 }
 
 function rowToProperty(row: PropertyRow): Property {
@@ -110,6 +118,8 @@ function rowToProperty(row: PropertyRow): Property {
     electricityRate: row.electricity_rate ?? undefined,
     petsPolicy: row.pets_policy ?? undefined,
     description: row.description ?? undefined,
+    source: row.source ?? undefined,
+    needsReview: row.needs_review ?? undefined,
   }
 }
 
@@ -150,6 +160,8 @@ function rowToDemand(row: DemandRow): Demand {
     zone: row.zone,
     tenants: row.tenants,
     createdAt: row.created_at,
+    source: row.source ?? undefined,
+    needsReview: row.needs_review ?? undefined,
   }
 }
 
@@ -219,11 +231,55 @@ export async function deleteProperty(id: string): Promise<void> {
   if (error) throw error
 }
 
+// Publicaciones importadas (p. ej. desde Apify/Facebook) que quedaron
+// marcadas como needs_review = true, pendientes de revisión manual antes
+// de aparecer en el Directorio o el Muro públicos.
+export async function getPendingProperties(): Promise<Property[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('properties')
+    .select('*')
+    .eq('needs_review', true)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data as PropertyRow[]).map(rowToProperty)
+}
+
+export async function approveProperty(id: string): Promise<void> {
+  const client = requireClient()
+  const { error } = await client.from('properties').update({ needs_review: false }).eq('id', id)
+  if (error) throw error
+}
+
+export async function getPendingDemands(): Promise<Demand[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('demands')
+    .select('*')
+    .eq('needs_review', true)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data as DemandRow[]).map(rowToDemand)
+}
+
+export async function approveDemand(id: string): Promise<void> {
+  const client = requireClient()
+  const { error } = await client.from('demands').update({ needs_review: false }).eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteDemand(id: string): Promise<void> {
+  const client = requireClient()
+  const { error } = await client.from('demands').delete().eq('id', id)
+  if (error) throw error
+}
+
 export async function getDemands(): Promise<Demand[]> {
   const client = requireClient()
   const { data, error } = await client
     .from('demands')
     .select('*')
+    .eq('needs_review', false)
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data as DemandRow[]).map(rowToDemand)
@@ -463,4 +519,54 @@ export function useMyDemands(userId: string | null | undefined) {
   }, [userId])
 
   return { demands, loading, error }
+}
+
+// Publicaciones importadas (Apify/Facebook) pendientes de revisión manual,
+// usado en la página de revisión antes de publicarlas en el Directorio o
+// el Muro públicos.
+export function usePendingReview() {
+  const [properties, setProperties] = useState<Property[]>([])
+  const [demands, setDemands] = useState<Demand[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setError(new SupabaseNotConfiguredError())
+      setLoading(false)
+      return
+    }
+
+    let active = true
+
+    async function load() {
+      try {
+        const [p, d] = await Promise.all([getPendingProperties(), getPendingDemands()])
+        if (active) {
+          setProperties(p)
+          setDemands(d)
+          setError(null)
+        }
+      } catch (err) {
+        if (active) setError(err as Error)
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    load()
+
+    const channel = supabase
+      .channel('pending-review-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'properties' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'demands' }, load)
+      .subscribe()
+
+    return () => {
+      active = false
+      supabase?.removeChannel(channel)
+    }
+  }, [])
+
+  return { properties, demands, loading, error }
 }
