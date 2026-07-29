@@ -20,7 +20,8 @@ interface ApifyPost {
   text?: string
   attachments?: ApifyAttachment[]
   url?: string
-  postedAt?: string
+  time?: string
+  groupTitle?: string
   // El scraper de Facebook manda esto como objeto ({id, name, profilePic}),
   // no como texto simple.
   user?: string | { name?: string }
@@ -338,6 +339,9 @@ export async function POST(req: Request) {
             tenants: '1',
             source: 'apify_facebook',
             needs_review: true,
+            source_url: post.url || null,
+            posted_at: post.time || null,
+            source_group: post.groupTitle || null,
           })
           // 23505 = unique_violation: dos posts idénticos se procesaron al
           // mismo tiempo (concurrencia) y ya se guardó el otro primero.
@@ -374,6 +378,9 @@ export async function POST(req: Request) {
             source: 'apify_facebook',
             needs_review: true,
             description: post.text || null,
+            source_url: post.url || null,
+            posted_at: post.time || null,
+            source_group: post.groupTitle || null,
           })
           if (error) {
             if (error.code === '23505') return 'duplicate' as const
