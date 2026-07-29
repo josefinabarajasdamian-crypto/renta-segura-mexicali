@@ -10,6 +10,7 @@ import {
   Target,
   FileText,
   ScanLine,
+  ClipboardCheck,
   Loader2,
   TriangleAlert,
   MessagesSquare,
@@ -19,6 +20,7 @@ import {
   useMyProperties,
   useMyDemands,
   useDemands,
+  usePendingReview,
   updatePropertyStatus,
   deleteProperty,
   type Property,
@@ -57,6 +59,8 @@ export default function DashboardPage() {
     isTenant ? user?.id : undefined,
   )
   const { demands: wallDemands } = useDemands()
+  const { properties: pendingProperties, demands: pendingDemands } = usePendingReview()
+  const pendingCount = pendingProperties.length + pendingDemands.length
   const toast = useToast()
 
   function navigate(id: string) {
@@ -181,6 +185,21 @@ export default function DashboardPage() {
               <ThemeToggle />
               {!isTenant && (
                 <>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="relative gap-1.5"
+                    nativeButton={false}
+                    render={<Link href="/dashboard/revision" />}
+                  >
+                    <ClipboardCheck className="size-4" />
+                    <span className="hidden sm:inline">Revisar importados</span>
+                    {pendingCount > 0 && (
+                      <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-destructive text-[0.65rem] font-bold text-white">
+                        {pendingCount}
+                      </span>
+                    )}
+                  </Button>
                   <Button
                     variant="outline"
                     size="lg"

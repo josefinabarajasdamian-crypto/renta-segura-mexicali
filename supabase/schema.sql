@@ -81,6 +81,7 @@ create table if not exists public.demands (
 );
 
 alter table public.demands add column if not exists source text;
+alter table public.demands add column if not exists needs_review boolean not null default false;
 
 -- ============================================================
 -- Perfiles de usuario (Supabase Auth)
@@ -183,6 +184,19 @@ create policy "demands_public_select" on public.demands
 drop policy if exists "demands_public_insert" on public.demands;
 create policy "demands_public_insert" on public.demands
   for insert to anon, authenticated with check (true);
+
+-- Permite aprobar/descartar solicitudes importadas (needs_review = true,
+-- sin dueño) desde la página de revisión. Igual que con properties, una
+-- demanda sin user_id queda editable por cualquier usuario logueado.
+drop policy if exists "demands_update_own" on public.demands;
+create policy "demands_update_own" on public.demands
+  for update to authenticated
+  using (user_id = auth.uid() or user_id is null)
+  with check (user_id = auth.uid() or user_id is null);
+
+drop policy if exists "demands_delete_own" on public.demands;
+create policy "demands_delete_own" on public.demands
+  for delete to authenticated using (user_id = auth.uid() or user_id is null);
 
 -- ============================================================
 -- Realtime: publica los cambios de estas tablas (idempotente)

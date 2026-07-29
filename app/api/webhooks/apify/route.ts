@@ -177,6 +177,7 @@ export async function POST(req: Request) {
             zone: parsed.zone || 'Mexicali',
             tenants: '1',
             source: 'apify_facebook',
+            needs_review: true,
           })
           if (error) throw error
         } else {
