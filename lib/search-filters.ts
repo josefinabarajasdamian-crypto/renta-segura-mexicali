@@ -51,6 +51,52 @@ export function matchesBudget(property: Property, budgetLabel: string | null): b
   return true
 }
 
+const NUMBER_WORDS: Record<string, number> = {
+  un: 1,
+  uno: 1,
+  una: 1,
+  dos: 2,
+  tres: 3,
+  cuatro: 4,
+  cinco: 5,
+  seis: 6,
+}
+
+function wordToNumber(raw: string): number | null {
+  if (/^\d+$/.test(raw)) return parseInt(raw, 10)
+  return NUMBER_WORDS[raw.toLowerCase()] ?? null
+}
+
+const NUM_TOKEN = '(\\d+|un|uno|una|dos|tres|cuatro|cinco|seis)'
+
+function extractCount(text: string, unitPattern: string): { value: number | null; rest: string } {
+  const match = text.match(new RegExp(`\\b${NUM_TOKEN}\\s*${unitPattern}\\b`, 'i'))
+  if (!match || match.index == null) return { value: null, rest: text }
+  const rest = (text.slice(0, match.index) + text.slice(match.index + match[0].length))
+    .replace(/\s+/g, ' ')
+    .trim()
+  return { value: wordToNumber(match[1]), rest }
+}
+
+// "2 recámaras" y "una recámara" deben filtrar distinto — un simple
+// "el texto contiene 'recámara'" hace match con ambos (recámara es
+// substring de recámaras) sin importar la cantidad. Se detecta la
+// cantidad mencionada y se compara contra el dato real (bedrooms/
+// bathrooms) en vez de solo buscarla como texto.
+export function parseSmartQuery(query: string): {
+  bedrooms: number | null
+  bathrooms: number | null
+  text: string
+} {
+  const bedroomsResult = extractCount(query, 'rec[aá]maras?')
+  const bathroomsResult = extractCount(bedroomsResult.rest, 'ba[ñn]os?')
+  return {
+    bedrooms: bedroomsResult.value,
+    bathrooms: bathroomsResult.value,
+    text: bathroomsResult.rest,
+  }
+}
+
 export function matchesQuery(property: Property, query: string | null): boolean {
   const q = query?.trim().toLowerCase()
   if (!q) return true
@@ -71,10 +117,10 @@ export function filterProperties(
   properties: Property[],
   filters: { q?: string | null; zone?: string | null; budget?: string | null },
 ): Property[] {
-  return properties.filter(
-    (p) =>
-      matchesQuery(p, filters.q ?? null) &&
-      matchesZone(p, filters.zone ?? null) &&
-      matchesBudget(p, filters.budget ?? null),
-  )
+  const { bedrooms, bathrooms, text } = parseSmartQuery(filters.q?.trim() ?? '')
+  return properties.filter((p) => {
+    if (bedrooms != null && p.bedrooms !== bedrooms) return false
+    if (bathrooms != null && p.bathrooms !== bathrooms) return false
+    return matchesQuery(p, text) && matchesZone(p, filters.zone ?? null) && matchesBudget(p, filters.budget ?? null)
+  })
 }
