@@ -1,12 +1,20 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 // Dispara la Task de Apify ya configurada (grupo de Facebook, número de
 // posts, etc. quedan definidos ahí mismo en el panel de Apify). El webhook
 // que ya está configurado en Apify avisa solo cuando la corrida termina, así
 // que aquí solo hace falta arrancarla.
-export async function POST() {
+//
+// Si se manda "from"/"to" (YYYY-MM-DD), se le pide a Apify solo lo posterior
+// a "from" (onlyPostsNewerThan, el único límite que el actor soporta de
+// forma nativa) y se guarda el rango en import_requests para que el webhook
+// recorte también el límite superior al procesar los resultados.
+export async function POST(req: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -45,9 +53,34 @@ export async function POST() {
     )
   }
 
+  let body: { from?: string; to?: string } = {}
+  try {
+    body = await req.json()
+  } catch {
+    // Sin body también es válido: corre con la configuración por default de la Task.
+  }
+
+  const from = body.from && DATE_RE.test(body.from) ? body.from : undefined
+  const to = body.to && DATE_RE.test(body.to) ? body.to : undefined
+
+  if ((from || to) && supabaseAdmin) {
+    const { error } = await supabaseAdmin
+      .from('import_requests')
+      .insert({ from_date: from ?? null, to_date: to ?? null })
+    if (error) console.error('No se pudo guardar el rango de fechas de importación:', error)
+  }
+
+  const runInput = from ? { onlyPostsNewerThan: from, resultsLimit: 100 } : null
+
   const res = await fetch(
     `https://api.apify.com/v2/actor-tasks/${taskId}/runs?token=${encodeURIComponent(apifyToken)}`,
-    { method: 'POST' },
+    runInput
+      ? {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(runInput),
+        }
+      : { method: 'POST' },
   )
 
   if (!res.ok) {

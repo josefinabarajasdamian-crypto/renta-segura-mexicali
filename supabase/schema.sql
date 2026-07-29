@@ -138,6 +138,22 @@ where not exists (
 );
 
 -- ============================================================
+-- Tabla: import_requests — rango de fechas pedido al lanzar una
+-- extracción desde /dashboard/revision. El webhook de Apify lo lee (el
+-- más reciente) para saber hasta qué fecha quedarse, ya que el actor
+-- solo soporta un límite inferior (onlyPostsNewerThan) de forma nativa.
+-- No lleva RLS pública: solo la usa el service role desde el servidor.
+-- ============================================================
+create table if not exists public.import_requests (
+  id uuid primary key default gen_random_uuid(),
+  from_date date,
+  to_date date,
+  created_at timestamptz not null default now()
+);
+
+alter table public.import_requests enable row level security;
+
+-- ============================================================
 -- Perfiles de usuario (Supabase Auth)
 -- ============================================================
 create table if not exists public.profiles (
