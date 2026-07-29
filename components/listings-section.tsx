@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { LayoutGrid, MessagesSquare, Plus, Loader2, TriangleAlert } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { LayoutGrid, MessagesSquare, Plus, Loader2, TriangleAlert, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PropertyCard } from '@/components/property-card'
 import { DemandCard } from '@/components/demand-card'
@@ -9,6 +10,7 @@ import { DemandFormModal } from '@/components/demand-form-modal'
 import { Toast, useToast } from '@/components/ui/toast'
 import { useProperties, useDemands } from '@/lib/store'
 import { usePublicProfiles } from '@/lib/auth'
+import { filterProperties } from '@/lib/search-filters'
 import { cn } from '@/lib/utils'
 
 type View = 'directorio' | 'muro'
@@ -23,6 +25,8 @@ function EmptyState({ icon: Icon, message }: { icon: typeof Loader2; message: st
 }
 
 export function ListingsSection() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [view, setView] = useState<View>('directorio')
   // Simula si el usuario que mira es un agente/propietario.
   const [isAgent, setIsAgent] = useState(false)
@@ -33,6 +37,16 @@ export function ListingsSection() {
     properties.map((p) => p.userId).filter((id): id is string => Boolean(id)),
   )
   const toast = useToast()
+
+  const q = searchParams.get('q')
+  const zone = searchParams.get('zone')
+  const budget = searchParams.get('budget')
+  const hasFilters = Boolean(q || zone || budget)
+
+  const filteredProperties = useMemo(
+    () => filterProperties(properties, { q, zone, budget }),
+    [properties, q, zone, budget],
+  )
 
   return (
     <section id="directorio" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-14 sm:px-6">
@@ -83,15 +97,52 @@ export function ListingsSection() {
               Propiedades revisadas una por una. Contacta directo, sin intermediarios.
             </p>
           </div>
+
+          {hasFilters && !propertiesLoading && (
+            <div className="mb-6 flex flex-wrap items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-secondary/40 px-4 py-2.5 text-xs sm:justify-start">
+              <span className="text-muted-foreground">
+                {filteredProperties.length}{' '}
+                {filteredProperties.length === 1 ? 'resultado' : 'resultados'} para
+              </span>
+              {q && (
+                <span className="rounded-full bg-card px-2.5 py-1 font-medium text-foreground shadow-sm">
+                  &ldquo;{q}&rdquo;
+                </span>
+              )}
+              {zone && (
+                <span className="rounded-full bg-card px-2.5 py-1 font-medium text-foreground shadow-sm">
+                  {zone}
+                </span>
+              )}
+              {budget && (
+                <span className="rounded-full bg-card px-2.5 py-1 font-medium text-foreground shadow-sm">
+                  {budget}
+                </span>
+              )}
+              <button
+                onClick={() => router.push('/#directorio', { scroll: false })}
+                className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+              >
+                <X className="size-3.5" />
+                Limpiar filtros
+              </button>
+            </div>
+          )}
+
           {propertiesError ? (
             <EmptyState icon={TriangleAlert} message={propertiesError.message} />
           ) : propertiesLoading ? (
             <EmptyState icon={Loader2} message="Cargando propiedades..." />
           ) : properties.length === 0 ? (
             <EmptyState icon={TriangleAlert} message="Aún no hay propiedades publicadas." />
+          ) : filteredProperties.length === 0 ? (
+            <EmptyState
+              icon={TriangleAlert}
+              message="No encontramos propiedades con esos filtros. Intenta con otra zona o presupuesto."
+            />
           ) : (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {properties.map((property) => (
+              {filteredProperties.map((property) => (
                 <PropertyCard
                   key={property.id}
                   property={property}
