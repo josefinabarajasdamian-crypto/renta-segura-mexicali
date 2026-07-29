@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin'
 
+// Procesar cada post (imagen + Gemini) uno por uno tardaba más de los 10s
+// por default de Vercel y Apify nunca recibía respuesta (quedaba "Unknown").
+// Le damos más margen y además procesamos los posts en paralelo.
+export const maxDuration = 60
+
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
 
 interface ApifyPost {
@@ -161,15 +166,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: 'No hay publicaciones que procesar', saved: 0 })
     }
 
-    let saved = 0
-    const errors: string[] = []
+    const admin = supabaseAdmin
 
-    for (const post of posts) {
-      try {
+    const results = await Promise.allSettled(
+      posts.map(async (post) => {
         const parsed = await parseWithGemini(post, geminiKey)
 
         if (parsed.type === 'DEMAND') {
-          const { error } = await supabaseAdmin.from('demands').insert({
+          const { error } = await admin.from('demands').insert({
             name: post.user || 'Usuario de Facebook',
             anonymous: !post.user,
             message: post.text || '',
@@ -181,7 +185,7 @@ export async function POST(req: Request) {
           })
           if (error) throw error
         } else {
-          const { error } = await supabaseAdmin.from('properties').insert({
+          const { error } = await admin.from('properties').insert({
             title: parsed.title || 'Publicación importada de Facebook',
             price: parsed.price || 0,
             zone: parsed.zone || 'Mexicali',
@@ -201,10 +205,17 @@ export async function POST(req: Request) {
           })
           if (error) throw error
         }
+      }),
+    )
+
+    let saved = 0
+    const errors: string[] = []
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
         saved++
-      } catch (err) {
-        console.error('Error procesando post de Apify:', err)
-        errors.push(err instanceof Error ? err.message : 'Error desconocido')
+      } else {
+        console.error('Error procesando post de Apify:', result.reason)
+        errors.push(result.reason instanceof Error ? result.reason.message : 'Error desconocido')
       }
     }
 
