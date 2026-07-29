@@ -103,7 +103,12 @@ async function fetchApifyDatasetItems(datasetId: string, token: string): Promise
   const res = await fetch(
     `https://api.apify.com/v2/datasets/${datasetId}/items?token=${encodeURIComponent(token)}`,
   )
-  if (!res.ok) throw new Error('No se pudieron obtener los resultados del dataset de Apify')
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(
+      `No se pudieron obtener los resultados del dataset de Apify (HTTP ${res.status}): ${detail.slice(0, 300)}`,
+    )
+  }
   return res.json()
 }
 
