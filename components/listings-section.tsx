@@ -55,6 +55,31 @@ export function ListingsSection() {
     }
   }, [properties, q, zone, budget, landmarks])
 
+  // Zonas reales que sí tienen propiedades, con su conteo — así la persona
+  // ve de un vistazo dónde buscar en vez de adivinar qué escribir.
+  const zoneChips = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const p of properties) {
+      if (!p.zone) continue
+      counts.set(p.zone, (counts.get(p.zone) ?? 0) + 1)
+    }
+    return Array.from(counts.entries())
+      .map(([zoneName, count]) => ({ zone: zoneName, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
+  }, [properties])
+
+  function handleZoneChipClick(zoneValue: string) {
+    const params = new URLSearchParams(searchParams.toString())
+    if (zone === zoneValue) {
+      params.delete('zone')
+    } else {
+      params.set('zone', zoneValue)
+    }
+    const search = params.toString()
+    router.push(`/${search ? `?${search}` : ''}#directorio`, { scroll: false })
+  }
+
   return (
     <section id="directorio" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-14 sm:px-6">
       <div className="flex flex-col items-center gap-6">
@@ -104,6 +129,33 @@ export function ListingsSection() {
               Propiedades revisadas una por una. Contacta directo, sin intermediarios.
             </p>
           </div>
+
+          {zoneChips.length > 1 && !propertiesLoading && (
+            <div className="mb-6 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+              {zoneChips.map(({ zone: zoneName, count }) => (
+                <button
+                  key={zoneName}
+                  onClick={() => handleZoneChipClick(zoneName)}
+                  className={cn(
+                    'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
+                    zone === zoneName
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-border bg-card text-foreground hover:bg-muted',
+                  )}
+                >
+                  {zoneName}
+                  <span
+                    className={cn(
+                      'rounded-full px-1.5 py-0.5 text-[0.65rem]',
+                      zone === zoneName ? 'bg-primary-foreground/20' : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {hasFilters && !propertiesLoading && (
             <div className="mb-6 flex flex-wrap items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-secondary/40 px-4 py-2.5 text-xs sm:justify-start">
