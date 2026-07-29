@@ -299,6 +299,29 @@ export async function POST(req: Request) {
 
     const admin = supabaseAdmin
 
+    // El actor de Apify solo soporta un límite inferior de fecha
+    // (onlyPostsNewerThan). Si desde /dashboard/revision se pidió también
+    // un límite superior, se guardó en import_requests al lanzar esta
+    // corrida — lo leemos aquí (el más reciente y no muy viejo) para
+    // recortar los posts más nuevos que ese día.
+    if (datasetId) {
+      const { data: recentRequest } = await admin
+        .from('import_requests')
+        .select('to_date, created_at')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const isRecent =
+        recentRequest?.created_at &&
+        Date.now() - new Date(recentRequest.created_at).getTime() < 2 * 60 * 60 * 1000
+
+      if (isRecent && recentRequest?.to_date) {
+        const cutoff = new Date(`${recentRequest.to_date}T23:59:59`).getTime()
+        posts = posts.filter((post) => !post.time || new Date(post.time).getTime() <= cutoff)
+      }
+    }
+
     // Concurrencia limitada para no reventar el límite de 15 solicitudes
     // por minuto del tier gratis de Gemini.
     const results = await mapWithConcurrency(

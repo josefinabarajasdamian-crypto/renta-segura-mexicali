@@ -30,6 +30,7 @@ import {
   type Property,
   type Demand,
 } from '@/lib/store'
+import { cn } from '@/lib/utils'
 
 function SourceBadge({ source }: { source?: string }) {
   if (source !== 'apify_facebook') return null
@@ -293,11 +294,17 @@ export default function RevisionPage() {
   const toast = useToast()
   const [bulkBusy, setBulkBusy] = useState<'properties' | 'demands' | null>(null)
   const [runningExtraction, setRunningExtraction] = useState(false)
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
 
   async function handleRunExtraction() {
     setRunningExtraction(true)
     try {
-      const res = await fetch('/api/apify/run', { method: 'POST' })
+      const res = await fetch('/api/apify/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: fromDate || undefined, to: toDate || undefined }),
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'No se pudo iniciar la extracción')
       toast.show(data.message || 'Extracción iniciada')
@@ -397,9 +404,29 @@ export default function RevisionPage() {
               principal.
             </p>
           </div>
+        </div>
+        <div className="mx-auto flex max-w-4xl flex-wrap items-end gap-2 px-4 pb-4 sm:px-6">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-muted-foreground">Desde (opcional)</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className={cn(inputClass, 'w-36')}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-muted-foreground">Hasta (opcional)</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className={cn(inputClass, 'w-36')}
+            />
+          </div>
           <Button
             size="sm"
-            className="shrink-0 gap-1.5"
+            className="gap-1.5"
             disabled={runningExtraction}
             onClick={handleRunExtraction}
           >
@@ -408,8 +435,7 @@ export default function RevisionPage() {
             ) : (
               <PlayCircle className="size-3.5" />
             )}
-            <span className="hidden sm:inline">Ejecutar extracción</span>
-            <span className="sm:hidden">Ejecutar</span>
+            Ejecutar extracción
           </Button>
         </div>
       </header>
