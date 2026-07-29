@@ -46,6 +46,13 @@ alter table public.properties add column if not exists needs_review boolean not 
 -- confiable en la publicación importada (antes se guardaba 0).
 alter table public.properties alter column price drop not null;
 
+-- Datos extra de publicaciones importadas: link al post original de
+-- Facebook, fecha real de publicación (no de importación), y grupo de
+-- origen — útiles para revisar antes de publicar.
+alter table public.properties add column if not exists source_url text;
+alter table public.properties add column if not exists posted_at timestamptz;
+alter table public.properties add column if not exists source_group text;
+
 update public.properties
 set images = array[image]
 where (images is null or array_length(images, 1) is null) and image is not null and image <> '';
@@ -86,6 +93,9 @@ create table if not exists public.demands (
 
 alter table public.demands add column if not exists source text;
 alter table public.demands add column if not exists needs_review boolean not null default false;
+alter table public.demands add column if not exists source_url text;
+alter table public.demands add column if not exists posted_at timestamptz;
+alter table public.demands add column if not exists source_group text;
 
 -- Permite guardar budget = NULL cuando no se detectó un presupuesto claro
 -- en la publicación importada (antes se guardaba el texto "No especificado").

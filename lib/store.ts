@@ -30,6 +30,9 @@ export interface Property {
   description?: string
   source?: string
   needsReview?: boolean
+  sourceUrl?: string
+  postedAt?: string
+  sourceGroup?: string
 }
 
 export interface Demand {
@@ -44,6 +47,9 @@ export interface Demand {
   createdAt: string
   source?: string
   needsReview?: boolean
+  sourceUrl?: string
+  postedAt?: string
+  sourceGroup?: string
 }
 
 export type NewProperty = Omit<Property, 'id' | 'status' | 'createdAt'> & {
@@ -78,6 +84,9 @@ interface PropertyRow {
   description: string | null
   source: string | null
   needs_review: boolean | null
+  source_url: string | null
+  posted_at: string | null
+  source_group: string | null
 }
 
 interface DemandRow {
@@ -92,6 +101,9 @@ interface DemandRow {
   created_at: string
   source: string | null
   needs_review: boolean | null
+  source_url: string | null
+  posted_at: string | null
+  source_group: string | null
 }
 
 function rowToProperty(row: PropertyRow): Property {
@@ -120,6 +132,9 @@ function rowToProperty(row: PropertyRow): Property {
     description: row.description ?? undefined,
     source: row.source ?? undefined,
     needsReview: row.needs_review ?? undefined,
+    sourceUrl: row.source_url ?? undefined,
+    postedAt: row.posted_at ?? undefined,
+    sourceGroup: row.source_group ?? undefined,
   }
 }
 
@@ -162,6 +177,9 @@ function rowToDemand(row: DemandRow): Demand {
     createdAt: row.created_at,
     source: row.source ?? undefined,
     needsReview: row.needs_review ?? undefined,
+    sourceUrl: row.source_url ?? undefined,
+    postedAt: row.posted_at ?? undefined,
+    sourceGroup: row.source_group ?? undefined,
   }
 }
 

@@ -7,6 +7,8 @@ import {
   BadgeCheck,
   Check,
   CheckCheck,
+  Clock,
+  ExternalLink,
   Loader2,
   MapPin,
   Pencil,
@@ -14,6 +16,7 @@ import {
   ScanLine,
   Trash2,
   TriangleAlert,
+  Users2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Toast, useToast } from '@/components/ui/toast'
@@ -23,6 +26,7 @@ import {
   deleteProperty,
   approveDemand,
   deleteDemand,
+  formatRelativeTime,
   type Property,
   type Demand,
 } from '@/lib/store'
@@ -34,6 +38,45 @@ function SourceBadge({ source }: { source?: string }) {
       <ScanLine className="size-3.5" />
       Importado de Facebook
     </span>
+  )
+}
+
+function ImportMeta({
+  sourceGroup,
+  postedAt,
+  sourceUrl,
+}: {
+  sourceGroup?: string
+  postedAt?: string
+  sourceUrl?: string
+}) {
+  if (!sourceGroup && !postedAt && !sourceUrl) return null
+  return (
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      {sourceGroup && (
+        <span className="inline-flex items-center gap-1">
+          <Users2 className="size-3.5" />
+          {sourceGroup}
+        </span>
+      )}
+      {postedAt && (
+        <span className="inline-flex items-center gap-1">
+          <Clock className="size-3.5" />
+          Publicado {formatRelativeTime(postedAt)}
+        </span>
+      )}
+      {sourceUrl && (
+        <a
+          href={sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+        >
+          <ExternalLink className="size-3.5" />
+          Ver original
+        </a>
+      )}
+    </p>
   )
 }
 
@@ -124,6 +167,11 @@ function PendingPropertyCard({
         {property.whatsapp && (
           <p className="text-xs text-muted-foreground">WhatsApp: {property.whatsapp}</p>
         )}
+        <ImportMeta
+          sourceGroup={property.sourceGroup}
+          postedAt={property.postedAt}
+          sourceUrl={property.sourceUrl}
+        />
         {property.description && (
           <p className="rounded-lg bg-muted/50 p-2.5 text-xs leading-relaxed text-foreground/80">
             {property.description}
@@ -196,6 +244,11 @@ function PendingDemandCard({
         Presupuesto: {demand.budget ? `$${demand.budget}` : 'No especificado'} · Zona:{' '}
         {demand.zone || 'No detectada'}
       </p>
+      <ImportMeta
+        sourceGroup={demand.sourceGroup}
+        postedAt={demand.postedAt}
+        sourceUrl={demand.sourceUrl}
+      />
       <div className="mt-1 flex gap-2">
         <Button
           size="sm"
