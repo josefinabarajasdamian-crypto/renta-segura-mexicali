@@ -13,7 +13,15 @@ interface ApifyPost {
   images?: string[]
   url?: string
   postedAt?: string
-  user?: string
+  // El scraper de Facebook manda esto como objeto ({id, name, profilePic}),
+  // no como texto simple.
+  user?: string | { name?: string }
+}
+
+function getPostUserName(post: ApifyPost): string | null {
+  if (!post.user) return null
+  if (typeof post.user === 'string') return post.user
+  return post.user.name || null
 }
 
 interface ParsedListing {
@@ -190,9 +198,10 @@ export async function POST(req: Request) {
         const parsed = await parseWithGemini(post, geminiKey)
 
         if (parsed.type === 'DEMAND') {
+          const userName = getPostUserName(post)
           const { error } = await admin.from('demands').insert({
-            name: post.user || 'Usuario de Facebook',
-            anonymous: !post.user,
+            name: userName || 'Usuario de Facebook',
+            anonymous: !userName,
             message: post.text || '',
             budget: parsed.price ? `$${parsed.price}` : 'No especificado',
             zone: parsed.zone || 'Mexicali',
