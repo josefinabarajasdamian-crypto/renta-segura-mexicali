@@ -33,6 +33,7 @@ export interface Property {
   sourceUrl?: string
   postedAt?: string
   sourceGroup?: string
+  importBatchId?: string
 }
 
 export interface Demand {
@@ -50,6 +51,7 @@ export interface Demand {
   sourceUrl?: string
   postedAt?: string
   sourceGroup?: string
+  importBatchId?: string
 }
 
 export type NewProperty = Omit<Property, 'id' | 'status' | 'createdAt'> & {
@@ -87,6 +89,7 @@ interface PropertyRow {
   source_url: string | null
   posted_at: string | null
   source_group: string | null
+  import_batch_id: string | null
 }
 
 interface DemandRow {
@@ -104,6 +107,7 @@ interface DemandRow {
   source_url: string | null
   posted_at: string | null
   source_group: string | null
+  import_batch_id: string | null
 }
 
 function rowToProperty(row: PropertyRow): Property {
@@ -135,6 +139,7 @@ function rowToProperty(row: PropertyRow): Property {
     sourceUrl: row.source_url ?? undefined,
     postedAt: row.posted_at ?? undefined,
     sourceGroup: row.source_group ?? undefined,
+    importBatchId: row.import_batch_id ?? undefined,
   }
 }
 
@@ -180,6 +185,7 @@ function rowToDemand(row: DemandRow): Demand {
     sourceUrl: row.source_url ?? undefined,
     postedAt: row.posted_at ?? undefined,
     sourceGroup: row.source_group ?? undefined,
+    importBatchId: row.import_batch_id ?? undefined,
   }
 }
 
@@ -646,4 +652,58 @@ export function useLandmarks() {
   }, [])
 
   return landmarks
+}
+
+// Historial de extracciones lanzadas desde /dashboard/revision — una fila
+// por cada clic en "Ejecutar extracción". Sirve para ver de qué corrida
+// viene cada propiedad/solicitud pendiente (Property.importBatchId /
+// Demand.importBatchId).
+export interface ImportBatch {
+  id: string
+  fromDate: string | null
+  toDate: string | null
+  createdAt: string
+}
+
+interface ImportBatchRow {
+  id: string
+  from_date: string | null
+  to_date: string | null
+  created_at: string
+}
+
+function rowToImportBatch(row: ImportBatchRow): ImportBatch {
+  return { id: row.id, fromDate: row.from_date, toDate: row.to_date, createdAt: row.created_at }
+}
+
+export async function getImportBatches(): Promise<ImportBatch[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('import_requests')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(20)
+  if (error) throw error
+  return (data as ImportBatchRow[]).map(rowToImportBatch)
+}
+
+export function useImportBatches() {
+  const [batches, setBatches] = useState<ImportBatch[]>([])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return
+    let active = true
+    getImportBatches()
+      .then((data) => {
+        if (active) setBatches(data)
+      })
+      .catch(() => {
+        if (active) setBatches([])
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  return batches
 }

@@ -138,11 +138,12 @@ where not exists (
 );
 
 -- ============================================================
--- Tabla: import_requests — rango de fechas pedido al lanzar una
--- extracción desde /dashboard/revision. El webhook de Apify lo lee (el
--- más reciente) para saber hasta qué fecha quedarse, ya que el actor
--- solo soporta un límite inferior (onlyPostsNewerThan) de forma nativa.
--- No lleva RLS pública: solo la usa el service role desde el servidor.
+-- Tabla: import_requests — historial de extracciones lanzadas desde
+-- /dashboard/revision (una fila por cada clic en "Ejecutar extracción").
+-- El webhook de Apify lee la más reciente para saber hasta qué fecha
+-- quedarse (el actor solo soporta un límite inferior de forma nativa) y
+-- para etiquetar cada propiedad/solicitud con a qué extracción pertenece
+-- (properties.import_batch_id / demands.import_batch_id).
 -- ============================================================
 create table if not exists public.import_requests (
   id uuid primary key default gen_random_uuid(),
@@ -152,6 +153,12 @@ create table if not exists public.import_requests (
 );
 
 alter table public.import_requests enable row level security;
+
+-- Solo lectura para usuarios logueados (la pantalla de revisión ya está
+-- protegida por el middleware); solo el service role puede insertar.
+drop policy if exists "import_requests_select_authenticated" on public.import_requests;
+create policy "import_requests_select_authenticated" on public.import_requests
+  for select to authenticated using (true);
 
 -- ============================================================
 -- Perfiles de usuario (Supabase Auth)
@@ -288,6 +295,33 @@ where d.message <> ''
 
 create unique index if not exists properties_description_unique on public.properties (description);
 create unique index if not exists demands_message_unique on public.demands (message);
+
+-- El mismo volante (imagen) se re-publica a veces con el caption de texto
+-- ligeramente distinto (o casi vacío), así que el índice por descripción
+-- no siempre lo detecta. WhatsApp + precio es una huella mucho más
+-- confiable para "es el mismo anuncio" — se limpia lo que ya existía
+-- duplicado y se agrega el mismo tipo de protección a nivel de base de
+-- datos (solo cuando sí se detectó un WhatsApp real).
+delete from public.properties p
+using public.properties p2
+where p.whatsapp <> ''
+  and p.whatsapp = p2.whatsapp
+  and p.price is not distinct from p2.price
+  and p.created_at > p2.created_at;
+
+create unique index if not exists properties_whatsapp_price_unique
+  on public.properties (whatsapp, price)
+  where whatsapp <> '';
+
+-- ============================================================
+-- Control de extracciones: a qué corrida de Apify pertenece cada
+-- propiedad/solicitud importada, para poder verlas agrupadas por
+-- extracción en /dashboard/revision.
+-- ============================================================
+alter table public.properties add column if not exists import_batch_id uuid
+  references public.import_requests(id) on delete set null;
+alter table public.demands add column if not exists import_batch_id uuid
+  references public.import_requests(id) on delete set null;
 
 -- ============================================================
 -- Realtime: publica los cambios de estas tablas (idempotente)
