@@ -175,6 +175,18 @@ export async function POST(req: Request) {
 
     const results = await Promise.allSettled(
       posts.map(async (post) => {
+        // Evita volver a importar el mismo post de Facebook si el scraper
+        // corre otra vez sobre el mismo grupo (el texto del post es el
+        // identificador más confiable que tenemos, ya que guardamos el
+        // texto tal cual en description/message).
+        if (post.text) {
+          const [{ data: dupProperty }, { data: dupDemand }] = await Promise.all([
+            admin.from('properties').select('id').eq('description', post.text).limit(1).maybeSingle(),
+            admin.from('demands').select('id').eq('message', post.text).limit(1).maybeSingle(),
+          ])
+          if (dupProperty || dupDemand) return 'duplicate' as const
+        }
+
         const parsed = await parseWithGemini(post, geminiKey)
 
         if (parsed.type === 'DEMAND') {
@@ -210,14 +222,17 @@ export async function POST(req: Request) {
           })
           if (error) throw error
         }
+        return 'saved' as const
       }),
     )
 
     let saved = 0
+    let duplicates = 0
     const errors: string[] = []
     for (const result of results) {
       if (result.status === 'fulfilled') {
-        saved++
+        if (result.value === 'duplicate') duplicates++
+        else saved++
       } else {
         console.error('Error procesando post de Apify:', result.reason)
         errors.push(result.reason instanceof Error ? result.reason.message : 'Error desconocido')
@@ -226,8 +241,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `${saved} publicación(es) procesada(s) y guardada(s) como borrador`,
+      message: `${saved} publicación(es) guardada(s) como borrador, ${duplicates} ya existían`,
       saved,
+      duplicates,
       errors,
     })
   } catch (error) {
