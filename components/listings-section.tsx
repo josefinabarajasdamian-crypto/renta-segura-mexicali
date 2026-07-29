@@ -8,7 +8,7 @@ import { PropertyCard } from '@/components/property-card'
 import { DemandCard } from '@/components/demand-card'
 import { DemandFormModal } from '@/components/demand-form-modal'
 import { Toast, useToast } from '@/components/ui/toast'
-import { useProperties, useDemands, type Property } from '@/lib/store'
+import { useProperties, useDemands, useLandmarks, type Property } from '@/lib/store'
 import { usePublicProfiles } from '@/lib/auth'
 import { filterProperties } from '@/lib/search-filters'
 import { cn } from '@/lib/utils'
@@ -33,6 +33,7 @@ export function ListingsSection() {
   const [showDemandForm, setShowDemandForm] = useState(false)
   const { properties, loading: propertiesLoading, error: propertiesError } = useProperties()
   const { demands, loading: demandsLoading, error: demandsError } = useDemands()
+  const landmarks = useLandmarks()
   const owners = usePublicProfiles(
     properties.map((p) => p.userId).filter((id): id is string => Boolean(id)),
   )
@@ -47,12 +48,12 @@ export function ListingsSection() {
     // Defensivo: si algo en el filtrado llegara a fallar, mostramos todas
     // las propiedades en vez de tumbar la página entera.
     try {
-      return filterProperties(properties, { q, zone, budget })
+      return filterProperties(properties, { q, zone, budget }, landmarks)
     } catch (err) {
       console.error('Error filtrando propiedades:', err)
       return properties
     }
-  }, [properties, q, zone, budget])
+  }, [properties, q, zone, budget, landmarks])
 
   return (
     <section id="directorio" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-14 sm:px-6">

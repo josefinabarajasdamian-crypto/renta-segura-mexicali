@@ -102,6 +102,42 @@ alter table public.demands add column if not exists source_group text;
 alter table public.demands alter column budget drop not null;
 
 -- ============================================================
+-- Tabla: landmarks — puntos de referencia para el buscador ("cerca del
+-- Hospital General", "por Plaza Cachanilla") que la gente usa en vez de
+-- nombres formales de colonia. "alias" es lo que alguien escribiría,
+-- "zone_keyword" es el texto que debe buscar dentro de zone/location de
+-- las propiedades. Agrega más filas aquí mismo en Supabase cuando
+-- quieras — no requiere ningún cambio de código.
+-- ============================================================
+create table if not exists public.landmarks (
+  id uuid primary key default gen_random_uuid(),
+  alias text not null,
+  zone_keyword text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.landmarks enable row level security;
+
+drop policy if exists "landmarks_public_select" on public.landmarks;
+create policy "landmarks_public_select" on public.landmarks
+  for select to anon, authenticated using (true);
+
+-- Set inicial pequeño y conservador — amplíalo tú misma según lo que la
+-- gente realmente busque (talleres, escuelas, IMSS específicos, etc.),
+-- agregando filas directamente en el editor de tablas de Supabase.
+insert into public.landmarks (alias, zone_keyword)
+select * from (values
+  ('Hospital General', 'Centro'),
+  ('Plaza Cachanilla', 'Centro'),
+  ('Parque Vicente Guerrero', 'Centro'),
+  ('Zona Río', 'Nueva'),
+  ('Nueva Mexicali', 'Nueva')
+) as seed(alias, zone_keyword)
+where not exists (
+  select 1 from public.landmarks l where l.alias = seed.alias
+);
+
+-- ============================================================
 -- Perfiles de usuario (Supabase Auth)
 -- ============================================================
 create table if not exists public.profiles (

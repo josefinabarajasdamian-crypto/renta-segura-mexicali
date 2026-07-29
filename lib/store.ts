@@ -599,3 +599,51 @@ export function usePendingReview() {
 
   return { properties, demands, loading, error }
 }
+
+// Puntos de referencia ("cerca del Hospital General", "por Plaza
+// Cachanilla") que el buscador usa para traducir lo que alguien escribe a
+// una zona real. Cambian poco, así que un solo fetch al montar es
+// suficiente — no hace falta suscripción en tiempo real.
+export interface Landmark {
+  id: string
+  alias: string
+  zoneKeyword: string
+}
+
+interface LandmarkRow {
+  id: string
+  alias: string
+  zone_keyword: string
+}
+
+function rowToLandmark(row: LandmarkRow): Landmark {
+  return { id: row.id, alias: row.alias, zoneKeyword: row.zone_keyword }
+}
+
+export async function getLandmarks(): Promise<Landmark[]> {
+  const client = requireClient()
+  const { data, error } = await client.from('landmarks').select('*').order('alias')
+  if (error) throw error
+  return (data as LandmarkRow[]).map(rowToLandmark)
+}
+
+export function useLandmarks() {
+  const [landmarks, setLandmarks] = useState<Landmark[]>([])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return
+    let active = true
+    getLandmarks()
+      .then((data) => {
+        if (active) setLandmarks(data)
+      })
+      .catch(() => {
+        if (active) setLandmarks([])
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  return landmarks
+}

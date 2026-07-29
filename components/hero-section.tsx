@@ -53,7 +53,7 @@ export function HeroSection() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Recámaras, colonia, amenidades... (ej. '2 recámaras UABC')"
+              placeholder="Recámaras, colonia, o cerca de... (ej. '2 recámaras cerca del Hospital General')"
               className="w-full bg-transparent text-sm font-medium text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground"
             />
           </label>
