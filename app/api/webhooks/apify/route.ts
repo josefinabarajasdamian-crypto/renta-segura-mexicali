@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin'
 
 // Procesar cada post (imagen + Gemini) uno por uno tardaba más de los 10s
@@ -7,10 +8,17 @@ import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin'
 export const maxDuration = 60
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
+const PROPERTY_IMAGES_BUCKET = 'property-images'
+
+interface ApifyAttachment {
+  thumbnail?: string
+  photo_image?: { uri?: string }
+  image?: { uri?: string }
+}
 
 interface ApifyPost {
   text?: string
-  images?: string[]
+  attachments?: ApifyAttachment[]
   url?: string
   postedAt?: string
   // El scraper de Facebook manda esto como objeto ({id, name, profilePic}),
@@ -22,6 +30,19 @@ function getPostUserName(post: ApifyPost): string | null {
   if (!post.user) return null
   if (typeof post.user === 'string') return post.user
   return post.user.name || null
+}
+
+// Las fotos vienen dentro de "attachments", en distinta forma según el post
+// tenga una sola foto (photo_image.uri) o varias (image.uri, con un primer
+// elemento "mediaset" que no es una foto en sí).
+function extractAttachmentUrls(post: ApifyPost): string[] {
+  if (!Array.isArray(post.attachments)) return []
+  const urls: string[] = []
+  for (const att of post.attachments) {
+    const uri = att?.photo_image?.uri || att?.image?.uri || att?.thumbnail
+    if (typeof uri === 'string' && !urls.includes(uri)) urls.push(uri)
+  }
+  return urls.slice(0, 6)
 }
 
 interface ParsedListing {
@@ -59,16 +80,43 @@ Reglas:
 - "phone" es el número de WhatsApp o celular visible en el texto, o null si no aparece.
 - Si el texto no tiene relación con renta de inmuebles en Mexicali, responde con "type": "DEMAND" y el resto de los campos en null/false.`
 
-async function fetchImageAsBase64(url: string): Promise<{ data: string; mimeType: string } | null> {
+interface FetchedImage {
+  buffer: Buffer
+  mimeType: string
+}
+
+async function fetchImageBuffer(url: string): Promise<FetchedImage | null> {
   try {
     const res = await fetch(url)
     if (!res.ok) return null
-    const buffer = await res.arrayBuffer()
+    const buffer = Buffer.from(await res.arrayBuffer())
     const mimeType = res.headers.get('content-type') || 'image/jpeg'
-    return { data: Buffer.from(buffer).toString('base64'), mimeType }
+    return { buffer, mimeType }
   } catch {
     return null
   }
+}
+
+function randomStorageFileName(mimeType: string) {
+  const ext = mimeType.split('/')[1]?.split('+')[0] || 'jpg'
+  const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
+  return `apify-${id}.${ext}`
+}
+
+// Las URLs de Facebook (scontent-...fbcdn.net) traen tokens que expiran a
+// los pocos días, así que re-subimos la foto a nuestro propio bucket para
+// que la publicación no se quede con una imagen rota más adelante.
+async function uploadImageToStorage(
+  admin: SupabaseClient,
+  image: FetchedImage,
+): Promise<string | null> {
+  const path = randomStorageFileName(image.mimeType)
+  const { error } = await admin.storage
+    .from(PROPERTY_IMAGES_BUCKET)
+    .upload(path, image.buffer, { contentType: image.mimeType })
+  if (error) return null
+  const { data } = admin.storage.from(PROPERTY_IMAGES_BUCKET).getPublicUrl(path)
+  return data.publicUrl
 }
 
 function sleep(ms: number) {
@@ -81,15 +129,17 @@ function sleep(ms: number) {
 async function parseWithGemini(
   post: ApifyPost,
   apiKey: string,
+  firstImage: FetchedImage | null,
   attempt = 1,
 ): Promise<ParsedListing> {
   const parts: Array<{ text: string } | { inline_data: { mime_type: string; data: string } }> = [
     { text: `${EXTRACTION_PROMPT}\n\nTexto de la publicación:\n"""${post.text ?? ''}"""` },
   ]
 
-  if (post.images?.[0]) {
-    const image = await fetchImageAsBase64(post.images[0])
-    if (image) parts.push({ inline_data: { mime_type: image.mimeType, data: image.data } })
+  if (firstImage) {
+    parts.push({
+      inline_data: { mime_type: firstImage.mimeType, data: firstImage.buffer.toString('base64') },
+    })
   }
 
   const response = await fetch(
@@ -118,7 +168,7 @@ async function parseWithGemini(
       const retryDelaySeconds = retryInfo ? parseFloat(String(retryInfo.retryDelay)) : NaN
       const waitMs = (Number.isFinite(retryDelaySeconds) ? retryDelaySeconds : attempt * 5) * 1000
       await sleep(waitMs)
-      return parseWithGemini(post, apiKey, attempt + 1)
+      return parseWithGemini(post, apiKey, firstImage, attempt + 1)
     }
     throw new Error(data?.error?.message || 'La API de Gemini rechazó la solicitud')
   }
@@ -243,7 +293,10 @@ export async function POST(req: Request) {
           if (dupProperty || dupDemand) return 'duplicate' as const
         }
 
-        const parsed = await parseWithGemini(post, geminiKey)
+        const attachmentUrls = extractAttachmentUrls(post)
+        const firstImage = attachmentUrls[0] ? await fetchImageBuffer(attachmentUrls[0]) : null
+
+        const parsed = await parseWithGemini(post, geminiKey, firstImage)
 
         if (parsed.type === 'DEMAND') {
           const userName = getPostUserName(post)
@@ -259,13 +312,24 @@ export async function POST(req: Request) {
           })
           if (error) throw error
         } else {
+          // Re-sube las fotos a nuestro propio bucket en vez de guardar los
+          // links de Facebook (esos expiran a los pocos días).
+          const fetchedImages = await Promise.all(
+            attachmentUrls.map((url, i) => (i === 0 ? Promise.resolve(firstImage) : fetchImageBuffer(url))),
+          )
+          const uploadedUrls = (
+            await Promise.all(
+              fetchedImages.map((img) => (img ? uploadImageToStorage(admin, img) : Promise.resolve(null))),
+            )
+          ).filter((url): url is string => Boolean(url))
+
           const { error } = await admin.from('properties').insert({
             title: parsed.title || 'Publicación importada de Facebook',
             price: parsed.price || 0,
             zone: parsed.zone || 'Mexicali',
             location: `${parsed.zone || 'Mexicali'}, Mexicali`,
-            image: post.images?.[0] || '',
-            images: post.images?.length ? post.images : [],
+            image: uploadedUrls[0] || '',
+            images: uploadedUrls,
             whatsapp: (parsed.phone || '').replace(/\D/g, ''),
             cooling_type: parsed.AC_type,
             bedrooms: parsed.bedrooms,
