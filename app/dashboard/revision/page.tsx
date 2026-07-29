@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   BadgeCheck,
   Check,
+  CheckCheck,
   Loader2,
   MapPin,
   Pencil,
@@ -236,6 +237,7 @@ function PendingDemandCard({
 export default function RevisionPage() {
   const { properties, demands, loading, error } = usePendingReview()
   const toast = useToast()
+  const [bulkBusy, setBulkBusy] = useState<'properties' | 'demands' | null>(null)
 
   async function handleApproveProperty(
     id: string,
@@ -274,6 +276,34 @@ export default function RevisionPage() {
     } catch (err) {
       toast.show(err instanceof Error ? err.message : 'No se pudo descartar')
     }
+  }
+
+  async function handleApproveAllProperties() {
+    setBulkBusy('properties')
+    const results = await Promise.allSettled(
+      properties.map((p) =>
+        approveProperty(p.id, { title: p.title, price: p.price, zone: p.zone }),
+      ),
+    )
+    setBulkBusy(null)
+    const failed = results.filter((r) => r.status === 'rejected').length
+    toast.show(
+      failed === 0
+        ? `${results.length} propiedad(es) publicada(s)`
+        : `${results.length - failed} publicada(s), ${failed} con error`,
+    )
+  }
+
+  async function handleApproveAllDemands() {
+    setBulkBusy('demands')
+    const results = await Promise.allSettled(demands.map((d) => approveDemand(d.id)))
+    setBulkBusy(null)
+    const failed = results.filter((r) => r.status === 'rejected').length
+    toast.show(
+      failed === 0
+        ? `${results.length} solicitud(es) publicada(s)`
+        : `${results.length - failed} publicada(s), ${failed} con error`,
+    )
   }
 
   const totalPending = properties.length + demands.length
@@ -323,9 +353,25 @@ export default function RevisionPage() {
           <div className="flex flex-col gap-8">
             {properties.length > 0 && (
               <section>
-                <h2 className="mb-3 font-display text-base font-bold text-foreground">
-                  Propiedades pendientes ({properties.length})
-                </h2>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h2 className="font-display text-base font-bold text-foreground">
+                    Propiedades pendientes ({properties.length})
+                  </h2>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={bulkBusy !== null}
+                    onClick={handleApproveAllProperties}
+                  >
+                    {bulkBusy === 'properties' ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <CheckCheck className="size-3.5" />
+                    )}
+                    Publicar todo
+                  </Button>
+                </div>
                 <div className="flex flex-col gap-4">
                   {properties.map((property) => (
                     <PendingPropertyCard
@@ -341,9 +387,25 @@ export default function RevisionPage() {
 
             {demands.length > 0 && (
               <section>
-                <h2 className="mb-3 font-display text-base font-bold text-foreground">
-                  Solicitudes pendientes ({demands.length})
-                </h2>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h2 className="font-display text-base font-bold text-foreground">
+                    Solicitudes pendientes ({demands.length})
+                  </h2>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={bulkBusy !== null}
+                    onClick={handleApproveAllDemands}
+                  >
+                    {bulkBusy === 'demands' ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <CheckCheck className="size-3.5" />
+                    )}
+                    Publicar todo
+                  </Button>
+                </div>
                 <div className="flex flex-col gap-4">
                   {demands.map((demand) => (
                     <PendingDemandCard
