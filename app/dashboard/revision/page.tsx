@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -9,6 +9,7 @@ import {
   CheckCheck,
   Clock,
   ExternalLink,
+  History,
   Loader2,
   MapPin,
   Pencil,
@@ -17,11 +18,13 @@ import {
   Trash2,
   TriangleAlert,
   Users2,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Toast, useToast } from '@/components/ui/toast'
 import {
   usePendingReview,
+  useImportBatches,
   approveProperty,
   deleteProperty,
   approveDemand,
@@ -45,13 +48,15 @@ function SourceBadge({ source }: { source?: string }) {
 function ImportMeta({
   sourceGroup,
   postedAt,
+  importedAt,
   sourceUrl,
 }: {
   sourceGroup?: string
   postedAt?: string
+  importedAt?: string
   sourceUrl?: string
 }) {
-  if (!sourceGroup && !postedAt && !sourceUrl) return null
+  if (!sourceGroup && !postedAt && !importedAt && !sourceUrl) return null
   return (
     <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
       {sourceGroup && (
@@ -64,6 +69,12 @@ function ImportMeta({
         <span className="inline-flex items-center gap-1">
           <Clock className="size-3.5" />
           Publicado {formatRelativeTime(postedAt)}
+        </span>
+      )}
+      {importedAt && (
+        <span className="inline-flex items-center gap-1">
+          <ScanLine className="size-3.5" />
+          Importado {formatRelativeTime(importedAt)}
         </span>
       )}
       {sourceUrl && (
@@ -171,6 +182,7 @@ function PendingPropertyCard({
         <ImportMeta
           sourceGroup={property.sourceGroup}
           postedAt={property.postedAt}
+          importedAt={property.createdAt}
           sourceUrl={property.sourceUrl}
         />
         {property.description && (
@@ -248,6 +260,7 @@ function PendingDemandCard({
       <ImportMeta
         sourceGroup={demand.sourceGroup}
         postedAt={demand.postedAt}
+        importedAt={demand.createdAt}
         sourceUrl={demand.sourceUrl}
       />
       <div className="mt-1 flex gap-2">
@@ -290,12 +303,40 @@ function PendingDemandCard({
 }
 
 export default function RevisionPage() {
-  const { properties, demands, loading, error } = usePendingReview()
+  const { properties: allProperties, demands: allDemands, loading, error } = usePendingReview()
+  const importBatches = useImportBatches()
   const toast = useToast()
   const [bulkBusy, setBulkBusy] = useState<'properties' | 'demands' | null>(null)
   const [runningExtraction, setRunningExtraction] = useState(false)
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null)
+
+  const batchCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const p of allProperties) {
+      if (p.importBatchId) counts.set(p.importBatchId, (counts.get(p.importBatchId) ?? 0) + 1)
+    }
+    for (const d of allDemands) {
+      if (d.importBatchId) counts.set(d.importBatchId, (counts.get(d.importBatchId) ?? 0) + 1)
+    }
+    return counts
+  }, [allProperties, allDemands])
+
+  const batchesWithPending = useMemo(
+    () => importBatches.filter((b) => (batchCounts.get(b.id) ?? 0) > 0),
+    [importBatches, batchCounts],
+  )
+
+  const properties = useMemo(
+    () =>
+      selectedBatchId ? allProperties.filter((p) => p.importBatchId === selectedBatchId) : allProperties,
+    [allProperties, selectedBatchId],
+  )
+  const demands = useMemo(
+    () => (selectedBatchId ? allDemands.filter((d) => d.importBatchId === selectedBatchId) : allDemands),
+    [allDemands, selectedBatchId],
+  )
 
   async function handleRunExtraction() {
     setRunningExtraction(true)
@@ -438,6 +479,53 @@ export default function RevisionPage() {
             Ejecutar extracción
           </Button>
         </div>
+        {batchesWithPending.length > 0 && (
+          <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+              <History className="size-3.5" />
+              Extracciones:
+            </span>
+            {batchesWithPending.map((batch) => {
+              const active = selectedBatchId === batch.id
+              const label = batch.fromDate
+                ? `${batch.fromDate}${batch.toDate ? ` a ${batch.toDate}` : ' +'}`
+                : formatRelativeTime(batch.createdAt)
+              return (
+                <button
+                  key={batch.id}
+                  type="button"
+                  onClick={() => setSelectedBatchId(active ? null : batch.id)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                    active
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  {label}
+                  <span
+                    className={cn(
+                      'rounded-full px-1.5 text-[0.65rem]',
+                      active ? 'bg-primary-foreground/20' : 'bg-muted',
+                    )}
+                  >
+                    {batchCounts.get(batch.id) ?? 0}
+                  </span>
+                </button>
+              )
+            })}
+            {selectedBatchId && (
+              <button
+                type="button"
+                onClick={() => setSelectedBatchId(null)}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="size-3.5" />
+                Ver todas
+              </button>
+            )}
+          </div>
+        )}
       </header>
 
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">

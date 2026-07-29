@@ -63,11 +63,15 @@ export async function POST(req: Request) {
   const from = body.from && DATE_RE.test(body.from) ? body.from : undefined
   const to = body.to && DATE_RE.test(body.to) ? body.to : undefined
 
-  if ((from || to) && supabaseAdmin) {
+  // Siempre se registra la corrida (aunque no se hayan puesto fechas), para
+  // llevar un historial de extracciones y poder marcar qué propiedades
+  // vinieron de cuál. El webhook la lee (la más reciente) para etiquetar
+  // cada propiedad/solicitud con import_batch_id.
+  if (supabaseAdmin) {
     const { error } = await supabaseAdmin
       .from('import_requests')
       .insert({ from_date: from ?? null, to_date: to ?? null })
-    if (error) console.error('No se pudo guardar el rango de fechas de importación:', error)
+    if (error) console.error('No se pudo registrar la extracción:', error)
   }
 
   const runInput = from ? { onlyPostsNewerThan: from, resultsLimit: 100 } : null

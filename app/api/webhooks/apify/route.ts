@@ -303,11 +303,13 @@ export async function POST(req: Request) {
     // (onlyPostsNewerThan). Si desde /dashboard/revision se pidió también
     // un límite superior, se guardó en import_requests al lanzar esta
     // corrida — lo leemos aquí (el más reciente y no muy viejo) para
-    // recortar los posts más nuevos que ese día.
+    // recortar los posts más nuevos que ese día, y para etiquetar cada
+    // propiedad/solicitud con a qué extracción pertenece.
+    let importBatchId: string | null = null
     if (datasetId) {
       const { data: recentRequest } = await admin
         .from('import_requests')
-        .select('to_date, created_at')
+        .select('id, to_date, created_at')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -316,9 +318,12 @@ export async function POST(req: Request) {
         recentRequest?.created_at &&
         Date.now() - new Date(recentRequest.created_at).getTime() < 2 * 60 * 60 * 1000
 
-      if (isRecent && recentRequest?.to_date) {
-        const cutoff = new Date(`${recentRequest.to_date}T23:59:59`).getTime()
-        posts = posts.filter((post) => !post.time || new Date(post.time).getTime() <= cutoff)
+      if (isRecent) {
+        importBatchId = recentRequest?.id ?? null
+        if (recentRequest?.to_date) {
+          const cutoff = new Date(`${recentRequest.to_date}T23:59:59`).getTime()
+          posts = posts.filter((post) => !post.time || new Date(post.time).getTime() <= cutoff)
+        }
       }
     }
 
@@ -365,6 +370,7 @@ export async function POST(req: Request) {
             source_url: post.url || null,
             posted_at: post.time || null,
             source_group: post.groupTitle || null,
+            import_batch_id: importBatchId,
           })
           // 23505 = unique_violation: dos posts idénticos se procesaron al
           // mismo tiempo (concurrencia) y ya se guardó el otro primero.
@@ -404,6 +410,7 @@ export async function POST(req: Request) {
             source_url: post.url || null,
             posted_at: post.time || null,
             source_group: post.groupTitle || null,
+            import_batch_id: importBatchId,
           })
           if (error) {
             if (error.code === '23505') return 'duplicate' as const
