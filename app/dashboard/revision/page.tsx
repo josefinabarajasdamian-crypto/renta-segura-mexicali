@@ -14,6 +14,7 @@ import {
   MapPin,
   Pencil,
   PlayCircle,
+  RotateCcw,
   ScanLine,
   Trash2,
   TriangleAlert,
@@ -308,6 +309,7 @@ export default function RevisionPage() {
   const toast = useToast()
   const [bulkBusy, setBulkBusy] = useState<'properties' | 'demands' | null>(null)
   const [runningExtraction, setRunningExtraction] = useState(false)
+  const [reprocessing, setReprocessing] = useState(false)
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null)
@@ -353,6 +355,20 @@ export default function RevisionPage() {
       toast.show(err instanceof Error ? err.message : 'No se pudo iniciar la extracción')
     } finally {
       setRunningExtraction(false)
+    }
+  }
+
+  async function handleReprocess() {
+    setReprocessing(true)
+    try {
+      const res = await fetch('/api/apify/reprocess', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'No se pudo reprocesar la última extracción')
+      toast.show(data.message || 'Extracción reprocesada')
+    } catch (err) {
+      toast.show(err instanceof Error ? err.message : 'No se pudo reprocesar la última extracción')
+    } finally {
+      setReprocessing(false)
     }
   }
 
@@ -477,6 +493,21 @@ export default function RevisionPage() {
               <PlayCircle className="size-3.5" />
             )}
             Ejecutar extracción
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={reprocessing}
+            onClick={handleReprocess}
+            title="Vuelve a procesar los posts de la última extracción sin volver a raspar Facebook (no gasta presupuesto de Apify)"
+          >
+            {reprocessing ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <RotateCcw className="size-3.5" />
+            )}
+            Reprocesar última extracción
           </Button>
         </div>
         {batchesWithPending.length > 0 && (
