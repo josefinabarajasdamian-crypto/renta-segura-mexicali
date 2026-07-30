@@ -12,6 +12,13 @@ import {
 // Le damos más margen y además procesamos los posts en paralelo.
 export const maxDuration = 60
 
+// Deja de arrancar posts nuevos antes de que se acabe el tiempo de la
+// función (con el límite de 15 solicitudes/minuto de Gemini, una corrida
+// grande puede tardar más de los 60s de Vercel). Los que no alcancen se
+// quedan sin guardar y se pueden recuperar después con "Reprocesar última
+// extracción" desde /dashboard/revision, sin gastar scraping de nuevo.
+const TIME_BUDGET_MS = 45_000
+
 export async function POST(req: Request) {
   const secret = req.headers.get('x-apify-secret')
   if (!secret || secret !== process.env.APIFY_WEBHOOK_SECRET) {
@@ -91,6 +98,7 @@ export async function POST(req: Request) {
       importBatchId,
       admin,
       geminiKey,
+      { deadlineMs: Date.now() + TIME_BUDGET_MS },
     )
 
     return NextResponse.json({

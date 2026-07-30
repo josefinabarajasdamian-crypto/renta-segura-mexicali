@@ -29,11 +29,25 @@ function getPostUserName(post: ApifyPost): string | null {
 // Filtro determinista extra (además del "ignore" que decide Gemini) para
 // no publicar solicitudes de venta en el Muro de Demandas.
 const SALE_KEYWORDS = ['venta', 'terreno', 'traspaso', 'compro', 'remate']
+const RENTAL_KEYWORDS = ['renta', 'rento', 'arriendo', 'alquiler', 'roomie', 'roomies']
 
 function looksLikeSalePost(text: string | undefined): boolean {
   if (!text) return false
   const lower = text.toLowerCase()
   return SALE_KEYWORDS.some((keyword) => lower.includes(keyword))
+}
+
+// Filtro previo a Gemini: si el texto trae palabras de venta y ninguna de
+// renta, no vale la pena gastar una llamada a la IA — casi seguro Gemini
+// también lo hubiera marcado como "ignore". Si hay ambigüedad (menciona
+// ambas, o no menciona ninguna) se deja pasar y que decida Gemini.
+function looksLikeSaleOnlyPost(text: string | undefined): boolean {
+  if (!text) return false
+  const lower = text.toLowerCase()
+  const hasSaleWord = SALE_KEYWORDS.some((keyword) => lower.includes(keyword))
+  if (!hasSaleWord) return false
+  const hasRentalWord = RENTAL_KEYWORDS.some((keyword) => lower.includes(keyword))
+  return !hasRentalWord
 }
 
 // Nunca guardamos 0 como precio real: si la IA no detectó un precio
@@ -147,6 +161,7 @@ async function parseWithGemini(
   post: ApifyPost,
   apiKey: string,
   firstImage: FetchedImage | null,
+  deadlineMs?: number,
   attempt = 1,
 ): Promise<ParsedListing> {
   const parts: Array<{ text: string } | { inline_data: { mime_type: string; data: string } }> = [
@@ -184,8 +199,15 @@ async function parseWithGemini(
       )
       const retryDelaySeconds = retryInfo ? parseFloat(String(retryInfo.retryDelay)) : NaN
       const waitMs = (Number.isFinite(retryDelaySeconds) ? retryDelaySeconds : attempt * 5) * 1000
+      // No esperamos más de lo que le queda de vida útil a la función: si
+      // el retraso que pide Gemini nos sacaría del tiempo disponible, es
+      // mejor fallar este post ahora (se reintenta en el siguiente clic)
+      // que arrastrar a toda la tanda a un timeout de la función.
+      if (deadlineMs && Date.now() + waitMs > deadlineMs) {
+        throw new Error('Se alcanzó el límite de solicitudes de Gemini, se reintentará después')
+      }
       await sleep(waitMs)
-      return parseWithGemini(post, apiKey, firstImage, attempt + 1)
+      return parseWithGemini(post, apiKey, firstImage, deadlineMs, attempt + 1)
     }
     throw new Error(data?.error?.message || 'La API de Gemini rechazó la solicitud')
   }
@@ -195,16 +217,23 @@ async function parseWithGemini(
   return JSON.parse(rawText) as ParsedListing
 }
 
+// Si se pasa deadlineMs, deja de arrancar posts nuevos una vez que se
+// cumple (los que ya estaban en curso sí terminan) — así una función con
+// límite de tiempo siempre alcanza a responder, en vez de quedar cortada a
+// medias. Las posiciones que nunca se llegaron a intentar quedan
+// "undefined" en el resultado.
 async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,
   fn: (item: T) => Promise<R>,
-): Promise<PromiseSettledResult<R>[]> {
-  const results: PromiseSettledResult<R>[] = new Array(items.length)
+  deadlineMs?: number,
+): Promise<Array<PromiseSettledResult<R> | undefined>> {
+  const results: Array<PromiseSettledResult<R> | undefined> = new Array(items.length)
   let nextIndex = 0
 
   async function worker() {
     while (nextIndex < items.length) {
+      if (deadlineMs && Date.now() >= deadlineMs) return
       const current = nextIndex++
       try {
         results[current] = { status: 'fulfilled', value: await fn(items[current]) }
@@ -236,6 +265,9 @@ export interface ProcessResult {
   duplicates: number
   ignored: number
   errors: string[]
+  // Cuántos posts se llegaron a intentar de verdad (los demás quedaron
+  // pendientes por el límite de tiempo, si se pasó deadlineMs).
+  attempted: number
 }
 
 // Núcleo compartido: clasifica cada post con Gemini y lo guarda como
@@ -248,102 +280,121 @@ export async function processApifyPosts(
   importBatchId: string | null,
   admin: SupabaseClient,
   geminiKey: string,
+  options: { deadlineMs?: number } = {},
 ): Promise<ProcessResult> {
+  const { deadlineMs } = options
+
   // Concurrencia limitada para no reventar el límite de 15 solicitudes por
   // minuto del tier gratis de Gemini.
-  const results = await mapWithConcurrency(posts, 3, async (post) => {
-    // Evita volver a importar el mismo post de Facebook si el scraper corre
-    // otra vez sobre el mismo grupo (el texto del post es el identificador
-    // más confiable que tenemos, ya que guardamos el texto tal cual en
-    // description/message).
-    if (post.text) {
-      const [{ data: dupProperty }, { data: dupDemand }] = await Promise.all([
-        admin.from('properties').select('id').eq('description', post.text).limit(1).maybeSingle(),
-        admin.from('demands').select('id').eq('message', post.text).limit(1).maybeSingle(),
-      ])
-      if (dupProperty || dupDemand) return 'duplicate' as const
-    }
-
-    const attachmentUrls = extractAttachmentUrls(post)
-    const firstImage = attachmentUrls[0] ? await fetchImageBuffer(attachmentUrls[0]) : null
-
-    const parsed = await parseWithGemini(post, geminiKey, firstImage)
-
-    // Ventas, terrenos, traspasos, etc. — no es lo que este directorio
-    // publica, así que ni siquiera se guarda como borrador.
-    if (parsed.ignore) return 'ignored' as const
-
-    if (parsed.type === 'DEMAND') {
-      if (looksLikeSalePost(post.text)) return 'ignored' as const
-
-      const userName = getPostUserName(post)
-      const { error } = await admin.from('demands').insert({
-        name: userName || 'Usuario de Facebook',
-        anonymous: !userName,
-        message: post.text || '',
-        budget: parsed.price != null ? String(parsed.price) : null,
-        zone: parsed.zone || 'Mexicali',
-        tenants: '1',
-        source: 'apify_facebook',
-        needs_review: true,
-        source_url: post.url || null,
-        posted_at: post.time || null,
-        source_group: post.groupTitle || null,
-        import_batch_id: importBatchId,
-      })
-      // 23505 = unique_violation: dos posts idénticos se procesaron al
-      // mismo tiempo (concurrencia) y ya se guardó el otro primero.
-      if (error) {
-        if (error.code === '23505') return 'duplicate' as const
-        throw error
+  const results = await mapWithConcurrency(
+    posts,
+    3,
+    async (post) => {
+      // Evita volver a importar el mismo post de Facebook si el scraper corre
+      // otra vez sobre el mismo grupo (el texto del post es el identificador
+      // más confiable que tenemos, ya que guardamos el texto tal cual en
+      // description/message).
+      if (post.text) {
+        const [{ data: dupProperty }, { data: dupDemand }] = await Promise.all([
+          admin.from('properties').select('id').eq('description', post.text).limit(1).maybeSingle(),
+          admin.from('demands').select('id').eq('message', post.text).limit(1).maybeSingle(),
+        ])
+        if (dupProperty || dupDemand) return 'duplicate' as const
       }
-    } else {
-      // Re-sube las fotos a nuestro propio bucket en vez de guardar los
-      // links de Facebook (esos expiran a los pocos días).
-      const fetchedImages = await Promise.all(
-        attachmentUrls.map((url, i) => (i === 0 ? Promise.resolve(firstImage) : fetchImageBuffer(url))),
-      )
-      const uploadedUrls = (
-        await Promise.all(
-          fetchedImages.map((img) => (img ? uploadImageToStorage(admin, img) : Promise.resolve(null))),
+
+      const attachmentUrls = extractAttachmentUrls(post)
+
+      // Filtros deterministas antes de gastar una llamada a Gemini: sin
+      // texto ni imagen no hay nada que extraer, y un post que solo habla
+      // de venta (sin mencionar renta) casi seguro Gemini lo hubiera
+      // marcado "ignore" de todos modos.
+      if (!post.text && attachmentUrls.length === 0) return 'ignored' as const
+      if (looksLikeSaleOnlyPost(post.text)) return 'ignored' as const
+
+      const firstImage = attachmentUrls[0] ? await fetchImageBuffer(attachmentUrls[0]) : null
+
+      const parsed = await parseWithGemini(post, geminiKey, firstImage, deadlineMs)
+
+      // Ventas, terrenos, traspasos, etc. — no es lo que este directorio
+      // publica, así que ni siquiera se guarda como borrador.
+      if (parsed.ignore) return 'ignored' as const
+
+      if (parsed.type === 'DEMAND') {
+        if (looksLikeSalePost(post.text)) return 'ignored' as const
+
+        const userName = getPostUserName(post)
+        const { error } = await admin.from('demands').insert({
+          name: userName || 'Usuario de Facebook',
+          anonymous: !userName,
+          message: post.text || '',
+          budget: parsed.price != null ? String(parsed.price) : null,
+          zone: parsed.zone || 'Mexicali',
+          tenants: '1',
+          source: 'apify_facebook',
+          needs_review: true,
+          source_url: post.url || null,
+          posted_at: post.time || null,
+          source_group: post.groupTitle || null,
+          import_batch_id: importBatchId,
+        })
+        // 23505 = unique_violation: dos posts idénticos se procesaron al
+        // mismo tiempo (concurrencia) y ya se guardó el otro primero.
+        if (error) {
+          if (error.code === '23505') return 'duplicate' as const
+          throw error
+        }
+      } else {
+        // Re-sube las fotos a nuestro propio bucket en vez de guardar los
+        // links de Facebook (esos expiran a los pocos días).
+        const fetchedImages = await Promise.all(
+          attachmentUrls.map((url, i) => (i === 0 ? Promise.resolve(firstImage) : fetchImageBuffer(url))),
         )
-      ).filter((url): url is string => Boolean(url))
+        const uploadedUrls = (
+          await Promise.all(
+            fetchedImages.map((img) => (img ? uploadImageToStorage(admin, img) : Promise.resolve(null))),
+          )
+        ).filter((url): url is string => Boolean(url))
 
-      const { error } = await admin.from('properties').insert({
-        title: parsed.title || 'Publicación importada de Facebook',
-        price: cleanPropertyPrice(parsed.price),
-        zone: parsed.zone || 'Mexicali',
-        location: `${parsed.zone || 'Mexicali'}, Mexicali`,
-        image: uploadedUrls[0] || '',
-        images: uploadedUrls,
-        whatsapp: (parsed.phone || '').replace(/\D/g, ''),
-        cooling_type: parsed.AC_type,
-        bedrooms: parsed.bedrooms,
-        bathrooms: parsed.bathrooms,
-        pets_policy: parsed.allowsPets ? 'Cualquier mascota' : 'No acepta',
-        tags: [],
-        status: 'Disponible',
-        source: 'apify_facebook',
-        needs_review: true,
-        description: post.text || null,
-        source_url: post.url || null,
-        posted_at: post.time || null,
-        source_group: post.groupTitle || null,
-        import_batch_id: importBatchId,
-      })
-      if (error) {
-        if (error.code === '23505') return 'duplicate' as const
-        throw error
+        const { error } = await admin.from('properties').insert({
+          title: parsed.title || 'Publicación importada de Facebook',
+          price: cleanPropertyPrice(parsed.price),
+          zone: parsed.zone || 'Mexicali',
+          location: `${parsed.zone || 'Mexicali'}, Mexicali`,
+          image: uploadedUrls[0] || '',
+          images: uploadedUrls,
+          whatsapp: (parsed.phone || '').replace(/\D/g, ''),
+          cooling_type: parsed.AC_type,
+          bedrooms: parsed.bedrooms,
+          bathrooms: parsed.bathrooms,
+          pets_policy: parsed.allowsPets ? 'Cualquier mascota' : 'No acepta',
+          tags: [],
+          status: 'Disponible',
+          source: 'apify_facebook',
+          needs_review: true,
+          description: post.text || null,
+          source_url: post.url || null,
+          posted_at: post.time || null,
+          source_group: post.groupTitle || null,
+          import_batch_id: importBatchId,
+        })
+        if (error) {
+          if (error.code === '23505') return 'duplicate' as const
+          throw error
+        }
       }
-    }
-    return 'saved' as const
-  })
+      return 'saved' as const
+    },
+    deadlineMs,
+  )
 
   let saved = 0
   let duplicates = 0
   let ignored = 0
+  let attempted = 0
   const errors: string[] = []
   for (const result of results) {
+    if (!result) continue // no se alcanzó a intentar por el límite de tiempo
+    attempted++
     if (result.status === 'fulfilled') {
       if (result.value === 'duplicate') duplicates++
       else if (result.value === 'ignored') ignored++
@@ -354,7 +405,7 @@ export async function processApifyPosts(
     }
   }
 
-  return { saved, duplicates, ignored, errors }
+  return { saved, duplicates, ignored, errors, attempted }
 }
 
 // El actor de Apify solo soporta un límite inferior de fecha
