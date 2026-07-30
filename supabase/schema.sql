@@ -302,6 +302,11 @@ create unique index if not exists demands_message_unique on public.demands (mess
 -- confiable para "es el mismo anuncio" — se limpia lo que ya existía
 -- duplicado y se agrega el mismo tipo de protección a nivel de base de
 -- datos (solo cuando sí se detectó un WhatsApp real).
+--
+-- OJO: un índice único normal NUNCA considera dos NULL como iguales, así
+-- que (whatsapp, price) con price NULL (muy común: "Sin precio
+-- detectado") dejaba pasar duplicados exactos sin problema. coalesce()
+-- convierte ambos NULL en el mismo valor para que sí choquen.
 delete from public.properties p
 using public.properties p2
 where p.whatsapp <> ''
@@ -309,8 +314,9 @@ where p.whatsapp <> ''
   and p.price is not distinct from p2.price
   and p.created_at > p2.created_at;
 
+drop index if exists properties_whatsapp_price_unique;
 create unique index if not exists properties_whatsapp_price_unique
-  on public.properties (whatsapp, price)
+  on public.properties (whatsapp, coalesce(price, -1))
   where whatsapp <> '';
 
 -- ============================================================
