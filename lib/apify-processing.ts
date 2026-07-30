@@ -154,9 +154,33 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-// El tier gratis de Gemini permite pocas solicitudes por minuto (15 para
-// gemini-3.5-flash-lite). Si nos topamos con ese límite (HTTP 429),
-// esperamos el tiempo que la propia API sugiere y reintentamos.
+// El tier gratis de Gemini permite solo 15 solicitudes por minuto (para
+// gemini-3.5-flash-lite). Con 3 posts en paralelo, mandábamos ráfagas que
+// agotaban esas 15 en unos segundos y pasábamos el resto del minuto
+// reintentando en vano (los reintentos fallidos también parecen contar
+// contra la misma cuota). En vez de reaccionar al 429, este "pacer"
+// reparte las llamadas de antemano a un ritmo sostenible — así casi nunca
+// se llega a topar con el límite.
+const GEMINI_MIN_INTERVAL_MS = 4200 // ~14.3/min, con margen bajo el tope de 15
+
+function createGeminiPacer(deadlineMs?: number) {
+  let nextSlot = 0
+  return async function waitForSlot() {
+    const now = Date.now()
+    const wait = Math.max(nextSlot - now, 0)
+    if (deadlineMs && now + wait > deadlineMs) {
+      throw new Error('Se acabó el tiempo esperando su turno para Gemini, se reintentará después')
+    }
+    nextSlot = Math.max(nextSlot, now) + GEMINI_MIN_INTERVAL_MS
+    if (wait > 0) await sleep(wait)
+  }
+}
+
+// El tier gratis de Gemini permite solo 15 solicitudes por minuto (para
+// gemini-3.5-flash-lite). Si de todos modos nos topamos con el límite
+// (HTTP 429) — por ejemplo si el pacer y la ventana real de Google no
+// coinciden exacto — esperamos el tiempo que la propia API sugiere y
+// reintentamos, como respaldo.
 async function parseWithGemini(
   post: ApifyPost,
   apiKey: string,
@@ -283,9 +307,12 @@ export async function processApifyPosts(
   options: { deadlineMs?: number } = {},
 ): Promise<ProcessResult> {
   const { deadlineMs } = options
+  const waitForGeminiSlot = createGeminiPacer(deadlineMs)
 
-  // Concurrencia limitada para no reventar el límite de 15 solicitudes por
-  // minuto del tier gratis de Gemini.
+  // La concurrencia es solo para las partes que no son Gemini (chequeo de
+  // duplicados, bajar imágenes, subirlas a Storage) — el pacer de arriba
+  // serializa las llamadas a Gemini entre los workers para no reventar el
+  // límite de 15 solicitudes por minuto del tier gratis.
   const results = await mapWithConcurrency(
     posts,
     3,
@@ -313,6 +340,7 @@ export async function processApifyPosts(
 
       const firstImage = attachmentUrls[0] ? await fetchImageBuffer(attachmentUrls[0]) : null
 
+      await waitForGeminiSlot()
       const parsed = await parseWithGemini(post, geminiKey, firstImage, deadlineMs)
 
       // Ventas, terrenos, traspasos, etc. — no es lo que este directorio
