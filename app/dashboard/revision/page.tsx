@@ -93,6 +93,23 @@ function ImportMeta({
   )
 }
 
+// Si la función del servidor se cae o se corta a medias (ej. timeout), la
+// respuesta ya no es JSON sino una página de error de Vercel — sin esto,
+// res.json() truena y el usuario ve el mensaje crudo de parseo en vez de
+// algo entendible.
+async function parseJsonResponse(res: Response): Promise<Record<string, unknown>> {
+  const raw = await res.text()
+  try {
+    return JSON.parse(raw)
+  } catch {
+    throw new Error(
+      res.ok
+        ? 'El servidor respondió con algo inesperado'
+        : `El servidor tardó demasiado o falló (HTTP ${res.status})`,
+    )
+  }
+}
+
 const inputClass =
   'h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none ring-ring/40 placeholder:text-muted-foreground focus-visible:ring-2'
 
@@ -348,9 +365,9 @@ export default function RevisionPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ from: fromDate || undefined, to: toDate || undefined }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'No se pudo iniciar la extracción')
-      toast.show(data.message || 'Extracción iniciada')
+      const data = await parseJsonResponse(res)
+      if (!res.ok) throw new Error((data?.error as string) || 'No se pudo iniciar la extracción')
+      toast.show((data.message as string) || 'Extracción iniciada')
     } catch (err) {
       toast.show(err instanceof Error ? err.message : 'No se pudo iniciar la extracción')
     } finally {
@@ -362,9 +379,9 @@ export default function RevisionPage() {
     setReprocessing(true)
     try {
       const res = await fetch('/api/apify/reprocess', { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'No se pudo reprocesar la última extracción')
-      toast.show(data.message || 'Extracción reprocesada')
+      const data = await parseJsonResponse(res)
+      if (!res.ok) throw new Error((data?.error as string) || 'No se pudo reprocesar la última extracción')
+      toast.show((data.message as string) || 'Extracción reprocesada')
     } catch (err) {
       toast.show(err instanceof Error ? err.message : 'No se pudo reprocesar la última extracción')
     } finally {
