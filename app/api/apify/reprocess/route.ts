@@ -10,6 +10,14 @@ import { fetchApifyDatasetItems, processApifyPosts, resolveImportBatch } from '@
 // un cambio de esquema pendiente) pero los posts ya se habían extraído.
 export const maxDuration = 60
 
+// Con el límite de 15 solicitudes/minuto de Gemini (tier gratis), un
+// dataset de 100 posts tarda varios minutos en clasificarse por completo —
+// mucho más que los 60s que da Vercel, y la función terminaba cortada a
+// medias devolviendo una página de error en vez de JSON. Procesamos en
+// tandas chicas y el botón se puede volver a presionar para seguir con el
+// resto (los ya guardados se saltan solos).
+const BATCH_SIZE = 10
+
 export async function POST() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -97,6 +105,37 @@ export async function POST() {
       })
     }
 
+    // Se descartan en bloque (una sola consulta, no una por post) los que
+    // ya se guardaron en una tanda anterior, para que cada clic avance
+    // sobre publicaciones nuevas en vez de repetir siempre las primeras
+    // del dataset.
+    const texts = posts.map((p) => p.text).filter((t): t is string => Boolean(t))
+    if (texts.length > 0) {
+      const [{ data: existingProps }, { data: existingDemands }] = await Promise.all([
+        admin.from('properties').select('description').in('description', texts),
+        admin.from('demands').select('message').in('message', texts),
+      ])
+      const seen = new Set([
+        ...(existingProps ?? []).map((r) => r.description as string),
+        ...(existingDemands ?? []).map((r) => r.message as string),
+      ])
+      posts = posts.filter((p) => !p.text || !seen.has(p.text))
+    }
+
+    if (posts.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: 'No hay publicaciones nuevas por reprocesar (ya se habían guardado antes)',
+        saved: 0,
+        duplicates: 0,
+        ignored: 0,
+        errors: [],
+      })
+    }
+
+    const remaining = Math.max(posts.length - BATCH_SIZE, 0)
+    posts = posts.slice(0, BATCH_SIZE)
+
     const resolved = await resolveImportBatch(admin, posts, { filterByToDate: false })
     posts = resolved.posts
 
@@ -109,11 +148,14 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      message: `${saved} publicación(es) guardada(s) como borrador, ${duplicates} ya existían, ${ignored} ignoradas (venta u otro)`,
+      message:
+        `${saved} publicación(es) guardada(s) como borrador, ${duplicates} ya existían, ${ignored} ignoradas (venta u otro)` +
+        (remaining > 0 ? `. Quedan ${remaining} más — dale clic otra vez para seguir.` : ''),
       saved,
       duplicates,
       ignored,
       errors,
+      remaining,
     })
   } catch (error) {
     console.error('Error reprocesando dataset de Apify:', error)
