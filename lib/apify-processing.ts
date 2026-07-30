@@ -182,16 +182,20 @@ function sleep(ms: number) {
 // se llega a topar con el límite.
 const GEMINI_MIN_INTERVAL_MS = 4200 // ~14.3/min, con margen bajo el tope de 15
 
+// Devuelve false (en vez de lanzar un error) cuando no alcanza el tiempo
+// para su turno — no llegar a intentarlo no es lo mismo que fallar al
+// intentarlo, y antes ambos casos se contaban igual como "error" en el
+// resumen, inflando ese conteo con posts que ni siquiera llegaron a tocar
+// Gemini.
 function createGeminiPacer(deadlineMs?: number) {
   let nextSlot = 0
-  return async function waitForSlot() {
+  return async function waitForSlot(): Promise<boolean> {
     const now = Date.now()
     const wait = Math.max(nextSlot - now, 0)
-    if (deadlineMs && now + wait > deadlineMs) {
-      throw new Error('Se acabó el tiempo esperando su turno para Gemini, se reintentará después')
-    }
+    if (deadlineMs && now + wait > deadlineMs) return false
     nextSlot = Math.max(nextSlot, now) + GEMINI_MIN_INTERVAL_MS
     if (wait > 0) await sleep(wait)
+    return true
   }
 }
 
@@ -360,7 +364,8 @@ export async function processApifyPosts(
 
       const firstImage = attachmentUrls[0] ? await fetchImageBuffer(attachmentUrls[0]) : null
 
-      await waitForGeminiSlot()
+      const gotSlot = await waitForGeminiSlot()
+      if (!gotSlot) return 'deferred' as const
       const parsed = await parseWithGemini(post, geminiKey, firstImage, deadlineMs)
 
       // Ventas, terrenos, traspasos, etc. — no es lo que este directorio
@@ -442,6 +447,7 @@ export async function processApifyPosts(
   const errors: string[] = []
   for (const result of results) {
     if (!result) continue // no se alcanzó a intentar por el límite de tiempo
+    if (result.status === 'fulfilled' && result.value === 'deferred') continue // no le tocó turno de Gemini a tiempo, no cuenta como intento
     attempted++
     if (result.status === 'fulfilled') {
       if (result.value === 'duplicate') duplicates++
