@@ -333,6 +333,21 @@ export async function processApifyPosts(
   const { deadlineMs } = options
   const waitForGeminiSlot = createGeminiPacer(deadlineMs)
 
+  // Si el mismo dataset trae el post repetido varias veces (pasa con
+  // Apify), procesarlos todos en paralelo es una carrera: el chequeo de
+  // duplicados por descripción corre ANTES de que cualquiera termine de
+  // guardar, así que las copias no se ven entre sí y las tres pasan sin
+  // problema hasta Gemini (gastando cuota) — el índice único de la base de
+  // datos las atrapa después, pero ya fue tarde. Quedarnos con una sola
+  // copia por texto exacto de entrada evita ese desperdicio.
+  const seenTexts = new Set<string>()
+  posts = posts.filter((post) => {
+    if (!post.text) return true
+    if (seenTexts.has(post.text)) return false
+    seenTexts.add(post.text)
+    return true
+  })
+
   // La concurrencia es solo para las partes que no son Gemini (chequeo de
   // duplicados, bajar imágenes, subirlas a Storage) — el pacer de arriba
   // serializa las llamadas a Gemini entre los workers para no reventar el
