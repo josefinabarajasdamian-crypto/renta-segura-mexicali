@@ -366,7 +366,10 @@ export async function processApifyPosts(
 export async function resolveImportBatch(
   admin: SupabaseClient,
   posts: ApifyPost[],
+  options: { filterByToDate?: boolean } = {},
 ): Promise<{ importBatchId: string | null; posts: ApifyPost[] }> {
+  const { filterByToDate = true } = options
+
   const { data: recentRequest } = await admin
     .from('import_requests')
     .select('id, to_date, created_at')
@@ -381,7 +384,13 @@ export async function resolveImportBatch(
   if (!isRecent) return { importBatchId: null, posts }
 
   let filteredPosts = posts
-  if (recentRequest?.to_date) {
+  // El recorte por "Hasta" solo tiene sentido en el webhook en vivo, donde
+  // la corrida que se está procesando es justo la que disparó esa misma
+  // solicitud (segundos antes). Al reprocesar una corrida ya vieja, la
+  // solicitud más reciente en import_requests puede ser de otro rango de
+  // fechas por completo y filtraría todo — ahí solo interesa etiquetar el
+  // lote, no recortar por fecha.
+  if (filterByToDate && recentRequest?.to_date) {
     const cutoff = new Date(`${recentRequest.to_date}T23:59:59`).getTime()
     filteredPosts = posts.filter((post) => !post.time || new Date(post.time).getTime() <= cutoff)
   }

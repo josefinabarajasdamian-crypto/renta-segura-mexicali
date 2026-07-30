@@ -97,7 +97,7 @@ export async function POST() {
       })
     }
 
-    const resolved = await resolveImportBatch(admin, posts)
+    const resolved = await resolveImportBatch(admin, posts, { filterByToDate: false })
     posts = resolved.posts
 
     const { saved, duplicates, ignored, errors } = await processApifyPosts(
