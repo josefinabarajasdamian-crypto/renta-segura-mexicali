@@ -116,9 +116,28 @@ interface FetchedImage {
   mimeType: string
 }
 
+// Un fetch() sin límite puede quedarse colgado si Facebook o Gemini
+// tardan — y como el "deadline" solo evita arrancar posts nuevos (uno ya
+// en curso sigue corriendo hasta terminar), una sola llamada colgada
+// puede arrastrar a toda la función más allá de los 60s de Vercel. Con
+// esto, ninguna llamada individual puede tardar más de lo indicado.
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit | undefined,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function fetchImageBuffer(url: string): Promise<FetchedImage | null> {
   try {
-    const res = await fetch(url)
+    const res = await fetchWithTimeout(url, undefined, 8_000)
     if (!res.ok) return null
     const buffer = Buffer.from(await res.arrayBuffer())
     const mimeType = res.headers.get('content-type') || 'image/jpeg'
@@ -198,7 +217,7 @@ async function parseWithGemini(
     })
   }
 
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
     {
       method: 'POST',
@@ -212,6 +231,7 @@ async function parseWithGemini(
         },
       }),
     },
+    12_000,
   )
 
   const data = await response.json()
