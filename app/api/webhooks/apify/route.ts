@@ -4,6 +4,7 @@ import {
   fetchApifyDatasetItems,
   processApifyPosts,
   resolveImportBatch,
+  summarizeProcessResult,
   type ApifyPost,
 } from '@/lib/apify-processing'
 
@@ -93,21 +94,16 @@ export async function POST(req: Request) {
       posts = resolved.posts
     }
 
-    const { saved, duplicates, ignored, errors } = await processApifyPosts(
-      posts,
-      importBatchId,
-      admin,
-      geminiKey,
-      { deadlineMs: Date.now() + TIME_BUDGET_MS },
-    )
+    const result = await processApifyPosts(posts, importBatchId, admin, geminiKey, {
+      deadlineMs: Date.now() + TIME_BUDGET_MS,
+    })
+    const remaining = Math.max(posts.length - result.attempted, 0)
 
     return NextResponse.json({
       success: true,
-      message: `${saved} publicación(es) guardada(s) como borrador, ${duplicates} ya existían, ${ignored} ignoradas (venta u otro)`,
-      saved,
-      duplicates,
-      ignored,
-      errors,
+      message: summarizeProcessResult(result, remaining),
+      ...result,
+      remaining,
     })
   } catch (error) {
     console.error('Error en webhook de Apify:', error)

@@ -408,6 +408,25 @@ export async function processApifyPosts(
   return { saved, duplicates, ignored, errors, attempted }
 }
 
+// Arma el texto que ve el admin en el dashboard/logs. Sin esto, los posts
+// que fallaron (ej. por la cuota de Gemini agotada) desaparecían del
+// mensaje sin dejar rastro — se veían igual que si nunca se hubiera
+// llamado a la IA, lo que hacía imposible saber si una corrida realmente
+// probó una nueva clave de Gemini o si todo se resolvió antes de llegar
+// a la IA (duplicados o posts de venta filtrados).
+export function summarizeProcessResult(result: ProcessResult, remaining = 0): string {
+  const { saved, duplicates, ignored, errors } = result
+  const quotaErrors = errors.filter((e) => /quota|límite de solicitudes/i.test(e)).length
+
+  let message = `${saved} publicación(es) guardada(s) como borrador, ${duplicates} ya existían, ${ignored} ignoradas (venta u otro)`
+  if (errors.length > 0) {
+    message += `, ${errors.length} con error`
+    if (quotaErrors > 0) message += ' (parece ser el límite de Gemini)'
+  }
+  if (remaining > 0) message += `. Quedan ${remaining} más — dale clic otra vez para seguir.`
+  return message
+}
+
 // El actor de Apify solo soporta un límite inferior de fecha
 // (onlyPostsNewerThan). Si desde /dashboard/revision se pidió también un
 // límite superior, se guardó en import_requests al lanzar la corrida — lo

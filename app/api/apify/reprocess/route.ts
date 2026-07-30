@@ -2,7 +2,12 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin'
-import { fetchApifyDatasetItems, processApifyPosts, resolveImportBatch } from '@/lib/apify-processing'
+import {
+  fetchApifyDatasetItems,
+  processApifyPosts,
+  resolveImportBatch,
+  summarizeProcessResult,
+} from '@/lib/apify-processing'
 
 // Reprocesa el dataset de la última corrida de Apify ya completada, sin
 // volver a raspar Facebook (no gasta presupuesto de scraping de Apify,
@@ -139,24 +144,15 @@ export async function POST() {
     posts = resolved.posts
     const candidateCount = posts.length
 
-    const { saved, duplicates, ignored, errors, attempted } = await processApifyPosts(
-      posts,
-      resolved.importBatchId,
-      admin,
-      geminiKey,
-      { deadlineMs: Date.now() + TIME_BUDGET_MS },
-    )
-    const remaining = Math.max(candidateCount - attempted, 0)
+    const result = await processApifyPosts(posts, resolved.importBatchId, admin, geminiKey, {
+      deadlineMs: Date.now() + TIME_BUDGET_MS,
+    })
+    const remaining = Math.max(candidateCount - result.attempted, 0)
 
     return NextResponse.json({
       success: true,
-      message:
-        `${saved} publicación(es) guardada(s) como borrador, ${duplicates} ya existían, ${ignored} ignoradas (venta u otro)` +
-        (remaining > 0 ? `. Quedan ${remaining} más — dale clic otra vez para seguir.` : ''),
-      saved,
-      duplicates,
-      ignored,
-      errors,
+      message: summarizeProcessResult(result, remaining),
+      ...result,
       remaining,
     })
   } catch (error) {
