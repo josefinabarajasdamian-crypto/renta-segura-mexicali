@@ -23,7 +23,12 @@ export const maxDuration = 60
 // arrancar posts nuevos antes de que se acabe, y siempre responde con lo
 // que sí alcanzó a hacer. El botón se puede volver a presionar para seguir
 // con el resto (los ya guardados se saltan solos).
-const TIME_BUDGET_MS = 45_000
+//
+// El presupuesto deja margen bajo los 60s de maxDuration: el deadline solo
+// evita arrancar posts nuevos, pero uno ya en curso sigue hasta terminar
+// (con timeout propio de ~8-12s por llamada de red gracias a
+// fetchWithTimeout), así que el margen absorbe esa cola.
+const TIME_BUDGET_MS = 30_000
 
 export async function POST() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

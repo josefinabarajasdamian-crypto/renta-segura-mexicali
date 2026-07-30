@@ -18,7 +18,7 @@ export const maxDuration = 60
 // grande puede tardar más de los 60s de Vercel). Los que no alcancen se
 // quedan sin guardar y se pueden recuperar después con "Reprocesar última
 // extracción" desde /dashboard/revision, sin gastar scraping de nuevo.
-const TIME_BUDGET_MS = 45_000
+const TIME_BUDGET_MS = 30_000
 
 export async function POST(req: Request) {
   const secret = req.headers.get('x-apify-secret')
