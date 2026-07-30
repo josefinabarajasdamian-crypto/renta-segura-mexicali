@@ -11,12 +11,14 @@ import { fetchApifyDatasetItems, processApifyPosts, resolveImportBatch } from '@
 export const maxDuration = 60
 
 // Con el límite de 15 solicitudes/minuto de Gemini (tier gratis), un
-// dataset de 100 posts tarda varios minutos en clasificarse por completo —
-// mucho más que los 60s que da Vercel, y la función terminaba cortada a
-// medias devolviendo una página de error en vez de JSON. Procesamos en
-// tandas chicas y el botón se puede volver a presionar para seguir con el
-// resto (los ya guardados se saltan solos).
-const BATCH_SIZE = 10
+// dataset grande puede tardar varios minutos en clasificarse por completo
+// — mucho más que los 60s que da Vercel. En vez de un tamaño de tanda fijo
+// (que igual podía tronar si Gemini ya estaba limitando por intentos
+// previos), se le da a la función un presupuesto de tiempo: deja de
+// arrancar posts nuevos antes de que se acabe, y siempre responde con lo
+// que sí alcanzó a hacer. El botón se puede volver a presionar para seguir
+// con el resto (los ya guardados se saltan solos).
+const TIME_BUDGET_MS = 45_000
 
 export async function POST() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -133,18 +135,18 @@ export async function POST() {
       })
     }
 
-    const remaining = Math.max(posts.length - BATCH_SIZE, 0)
-    posts = posts.slice(0, BATCH_SIZE)
-
     const resolved = await resolveImportBatch(admin, posts, { filterByToDate: false })
     posts = resolved.posts
+    const candidateCount = posts.length
 
-    const { saved, duplicates, ignored, errors } = await processApifyPosts(
+    const { saved, duplicates, ignored, errors, attempted } = await processApifyPosts(
       posts,
       resolved.importBatchId,
       admin,
       geminiKey,
+      { deadlineMs: Date.now() + TIME_BUDGET_MS },
     )
+    const remaining = Math.max(candidateCount - attempted, 0)
 
     return NextResponse.json({
       success: true,
