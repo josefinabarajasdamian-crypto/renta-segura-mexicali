@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
@@ -145,6 +146,15 @@ async function fetchImageBuffer(url: string): Promise<FetchedImage | null> {
   } catch {
     return null
   }
+}
+
+// Huella del volante en sí (no del texto ni del teléfono): dos anuncios
+// con el mismo WhatsApp pueden ser propiedades distintas de verdad (un
+// mismo agente/inmobiliaria maneja varios anuncios con un solo contacto),
+// pero es extremadamente improbable que compartan literalmente la misma
+// foto salvo que sea el mismo anuncio re-publicado.
+function hashImage(image: FetchedImage): string {
+  return createHash('sha256').update(image.buffer).digest('hex')
 }
 
 function randomStorageFileName(mimeType: string) {
@@ -444,6 +454,7 @@ export async function processApifyPosts(
           posted_at: post.time || null,
           source_group: post.groupTitle || null,
           import_batch_id: importBatchId,
+          image_hash: firstImage ? hashImage(firstImage) : null,
         })
         if (error) {
           if (error.code === '23505') return 'duplicate' as const
