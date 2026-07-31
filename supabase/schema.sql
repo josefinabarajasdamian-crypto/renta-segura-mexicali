@@ -296,28 +296,23 @@ where d.message <> ''
 create unique index if not exists properties_description_unique on public.properties (description);
 create unique index if not exists demands_message_unique on public.demands (message);
 
--- El mismo volante (imagen) se re-publica a veces con el caption de texto
--- ligeramente distinto (o casi vacío), así que el índice por descripción
--- no siempre lo detecta. WhatsApp + precio es una huella mucho más
--- confiable para "es el mismo anuncio" — se limpia lo que ya existía
--- duplicado y se agrega el mismo tipo de protección a nivel de base de
--- datos (solo cuando sí se detectó un WhatsApp real).
---
--- OJO: un índice único normal NUNCA considera dos NULL como iguales, así
--- que (whatsapp, price) con price NULL (muy común: "Sin precio
--- detectado") dejaba pasar duplicados exactos sin problema. coalesce()
--- convierte ambos NULL en el mismo valor para que sí choquen.
-delete from public.properties p
-using public.properties p2
-where p.whatsapp <> ''
-  and p.whatsapp = p2.whatsapp
-  and p.price is not distinct from p2.price
-  and p.created_at > p2.created_at;
-
+-- Se intentó (whatsapp, price) como huella de "mismo anuncio", pero un
+-- mismo WhatsApp puede publicar VARIAS propiedades reales distintas (una
+-- inmobiliaria o agente maneja varios anuncios con un solo contacto) — esa
+-- combinación las trataba a todas como duplicados entre sí y llegó a
+-- borrar propiedades que no lo eran. Ese índice y su limpieza ya NO se
+-- aplican (si vienen de una copia vieja de este archivo, no ejecutarlos).
 drop index if exists properties_whatsapp_price_unique;
-create unique index if not exists properties_whatsapp_price_unique
-  on public.properties (whatsapp, coalesce(price, -1))
-  where whatsapp <> '';
+
+-- En su lugar: la foto del volante en sí. Es extremadamente improbable
+-- que dos anuncios reales distintos compartan literalmente la misma
+-- imagen, así que (whatsapp, image_hash) es una huella mucho más segura
+-- que no colisiona entre propiedades distintas del mismo contacto.
+alter table public.properties add column if not exists image_hash text;
+
+create unique index if not exists properties_whatsapp_image_hash_unique
+  on public.properties (whatsapp, image_hash)
+  where whatsapp <> '' and image_hash is not null;
 
 -- ============================================================
 -- Control de extracciones: a qué corrida de Apify pertenece cada
