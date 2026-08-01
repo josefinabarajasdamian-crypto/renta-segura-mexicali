@@ -241,7 +241,7 @@ alter table public.demands enable row level security;
 -- el correo del operador para no repetirlo en cada policy.
 create or replace function public.admin_emails() returns text[]
 language sql stable as $$
-  select array['soyrico699@gmail.com']
+  select array['grillcheeseayutla@gmail.com']
 $$;
 
 drop policy if exists "properties_public_select" on public.properties;
