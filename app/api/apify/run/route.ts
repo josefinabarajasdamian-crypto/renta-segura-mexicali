@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { isAdminEmail } from '@/lib/admin'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -39,6 +40,9 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  if (!isAdminEmail(user.email)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 
   const apifyToken = process.env.APIFY_TOKEN

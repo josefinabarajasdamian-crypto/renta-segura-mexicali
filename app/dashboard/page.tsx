@@ -27,6 +27,7 @@ import {
   type PropertyStatus,
 } from '@/lib/store'
 import { useAuth, signOut } from '@/lib/auth'
+import { isAdminEmail } from '@/lib/admin'
 import { Toast, useToast } from '@/components/ui/toast'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { DashboardSidebar, ownerNav, tenantNav } from '@/components/dashboard/dashboard-sidebar'
@@ -49,6 +50,7 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { user, profile, loading: authLoading } = useAuth()
   const isTenant = profile?.role === 'inquilino'
+  const isAdmin = isAdminEmail(user?.email)
 
   const {
     properties,
@@ -185,21 +187,23 @@ export default function DashboardPage() {
               <ThemeToggle />
               {!isTenant && (
                 <>
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="relative gap-1.5"
-                    nativeButton={false}
-                    render={<Link href="/dashboard/revision" />}
-                  >
-                    <ClipboardCheck className="size-4" />
-                    <span className="hidden sm:inline">Revisar importados</span>
-                    {pendingCount > 0 && (
-                      <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-destructive text-[0.65rem] font-bold text-white">
-                        {pendingCount}
-                      </span>
-                    )}
-                  </Button>
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="relative gap-1.5"
+                      nativeButton={false}
+                      render={<Link href="/dashboard/revision" />}
+                    >
+                      <ClipboardCheck className="size-4" />
+                      <span className="hidden sm:inline">Revisar importados</span>
+                      {pendingCount > 0 && (
+                        <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-destructive text-[0.65rem] font-bold text-white">
+                          {pendingCount}
+                        </span>
+                      )}
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="lg"

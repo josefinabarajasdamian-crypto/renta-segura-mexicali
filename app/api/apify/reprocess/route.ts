@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { isAdminEmail } from '@/lib/admin'
 import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin'
 import {
   fetchApifyDatasetItems,
@@ -54,6 +55,9 @@ export async function POST() {
   } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  if (!isAdminEmail(user.email)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 
   const apifyToken = process.env.APIFY_TOKEN

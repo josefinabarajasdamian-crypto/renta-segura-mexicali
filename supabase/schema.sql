@@ -233,9 +233,25 @@ alter table public.demands add column if not exists user_id uuid references auth
 alter table public.properties enable row level security;
 alter table public.demands enable row level security;
 
+-- "using (true)" dejaba leer/editar/borrar CUALQUIER fila (incluidas las
+-- pendientes de revisión, sin publicar todavía) a cualquiera con la anon
+-- key — que es pública por diseño. El filtro needs_review=false del sitio
+-- es solo a nivel de la consulta que arma la app; sin esto, cualquiera
+-- podía saltárselo llamando a Supabase directo. admin_emails() centraliza
+-- el correo del operador para no repetirlo en cada policy.
+create or replace function public.admin_emails() returns text[]
+language sql stable as $$
+  select array['soyrico699@gmail.com']
+$$;
+
 drop policy if exists "properties_public_select" on public.properties;
 create policy "properties_public_select" on public.properties
-  for select to anon, authenticated using (true);
+  for select to anon, authenticated
+  using (
+    needs_review = false
+    or user_id = auth.uid()
+    or lower(auth.jwt() ->> 'email') = any (public.admin_emails())
+  );
 
 drop policy if exists "properties_public_insert" on public.properties;
 drop policy if exists "properties_insert_own" on public.properties;
@@ -246,34 +262,59 @@ drop policy if exists "properties_public_update" on public.properties;
 drop policy if exists "properties_update_own" on public.properties;
 create policy "properties_update_own" on public.properties
   for update to authenticated
-  using (user_id = auth.uid() or user_id is null)
-  with check (user_id = auth.uid() or user_id is null);
+  using (
+    user_id = auth.uid()
+    or (user_id is null and lower(auth.jwt() ->> 'email') = any (public.admin_emails()))
+  )
+  with check (
+    user_id = auth.uid()
+    or (user_id is null and lower(auth.jwt() ->> 'email') = any (public.admin_emails()))
+  );
 
 drop policy if exists "properties_public_delete" on public.properties;
 drop policy if exists "properties_delete_own" on public.properties;
 create policy "properties_delete_own" on public.properties
-  for delete to authenticated using (user_id = auth.uid() or user_id is null);
+  for delete to authenticated
+  using (
+    user_id = auth.uid()
+    or (user_id is null and lower(auth.jwt() ->> 'email') = any (public.admin_emails()))
+  );
 
 drop policy if exists "demands_public_select" on public.demands;
 create policy "demands_public_select" on public.demands
-  for select to anon, authenticated using (true);
+  for select to anon, authenticated
+  using (
+    needs_review = false
+    or user_id = auth.uid()
+    or lower(auth.jwt() ->> 'email') = any (public.admin_emails())
+  );
 
 drop policy if exists "demands_public_insert" on public.demands;
 create policy "demands_public_insert" on public.demands
   for insert to anon, authenticated with check (true);
 
 -- Permite aprobar/descartar solicitudes importadas (needs_review = true,
--- sin dueño) desde la página de revisión. Igual que con properties, una
--- demanda sin user_id queda editable por cualquier usuario logueado.
+-- sin dueño) desde la página de revisión, pero solo al operador del sitio
+-- — antes cualquier usuario logueado podía hacerlo.
 drop policy if exists "demands_update_own" on public.demands;
 create policy "demands_update_own" on public.demands
   for update to authenticated
-  using (user_id = auth.uid() or user_id is null)
-  with check (user_id = auth.uid() or user_id is null);
+  using (
+    user_id = auth.uid()
+    or (user_id is null and lower(auth.jwt() ->> 'email') = any (public.admin_emails()))
+  )
+  with check (
+    user_id = auth.uid()
+    or (user_id is null and lower(auth.jwt() ->> 'email') = any (public.admin_emails()))
+  );
 
 drop policy if exists "demands_delete_own" on public.demands;
 create policy "demands_delete_own" on public.demands
-  for delete to authenticated using (user_id = auth.uid() or user_id is null);
+  for delete to authenticated
+  using (
+    user_id = auth.uid()
+    or (user_id is null and lower(auth.jwt() ->> 'email') = any (public.admin_emails()))
+  );
 
 -- ============================================================
 -- Evita duplicados de publicaciones importadas (Apify/Facebook), incluso
