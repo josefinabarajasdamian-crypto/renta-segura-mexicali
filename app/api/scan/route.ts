@@ -1,3 +1,5 @@
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'edge'
@@ -38,6 +40,35 @@ interface GeminiResponse {
 }
 
 export async function POST(req: Request) {
+  // /importar ya requiere sesión a nivel de página (middleware), pero eso
+  // no protege esta ruta si alguien la llama directo — sin esto, cualquiera
+  // (sin cuenta siquiera) podía gastar la cuota de Gemini, la misma que
+  // comparte el pipeline de Facebook.
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.json({ error: 'Supabase no está configurado.' }, { status: 500 })
+  }
+
+  const cookieStore = await cookies()
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll()
+      },
+      setAll() {
+        // Solo leemos la sesión para verificar quién llama.
+      },
+    },
+  })
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
   let imageBase64: string | undefined
 
   try {
