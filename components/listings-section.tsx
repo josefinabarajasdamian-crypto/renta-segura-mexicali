@@ -9,7 +9,7 @@ import { DemandCard } from '@/components/demand-card'
 import { DemandFormModal } from '@/components/demand-form-modal'
 import { Toast, useToast } from '@/components/ui/toast'
 import { useProperties, useDemands, useLandmarks, type Property } from '@/lib/store'
-import { usePublicProfiles } from '@/lib/auth'
+import { useAuth, usePublicProfiles } from '@/lib/auth'
 import { filterProperties } from '@/lib/search-filters'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +31,8 @@ export function ListingsSection() {
   // Simula si el usuario que mira es un agente/propietario.
   const [isAgent, setIsAgent] = useState(false)
   const [showDemandForm, setShowDemandForm] = useState(false)
+  const { profile } = useAuth()
+  const isTenant = profile?.role === 'inquilino'
   const { properties, loading: propertiesLoading, error: propertiesError } = useProperties()
   const { demands, loading: demandsLoading, error: demandsError } = useDemands()
   const landmarks = useLandmarks()
@@ -228,40 +230,49 @@ export function ListingsSection() {
             </Button>
           </div>
 
-          <div className="mb-6 flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-secondary/40 px-4 py-2.5 text-xs text-muted-foreground sm:justify-start">
-            <span>Vista previa como:</span>
-            <button
-              onClick={() => setIsAgent(false)}
-              className={cn(
-                'rounded-md px-2.5 py-1 font-medium transition-colors',
-                !isAgent ? 'bg-card text-foreground shadow-sm' : 'hover:text-foreground',
-              )}
-            >
-              Inquilino
-            </button>
-            <button
-              onClick={() => setIsAgent(true)}
-              className={cn(
-                'rounded-md px-2.5 py-1 font-medium transition-colors',
-                isAgent ? 'bg-card text-foreground shadow-sm' : 'hover:text-foreground',
-              )}
-            >
-              Propietario / Agente
-            </button>
-          </div>
-
-          {demandsError ? (
-            <EmptyState icon={TriangleAlert} message={demandsError.message} />
-          ) : demandsLoading ? (
-            <EmptyState icon={Loader2} message="Cargando el Muro de Demandas..." />
-          ) : demands.length === 0 ? (
-            <EmptyState icon={TriangleAlert} message="Aún no hay solicitudes en el Muro." />
+          {isTenant ? (
+            <EmptyState
+              icon={MessagesSquare}
+              message="Publica tu búsqueda para que los propietarios te encuentren. Las solicitudes de otros inquilinos no se muestran aquí."
+            />
           ) : (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {demands.map((demand) => (
-                <DemandCard key={demand.id} demand={demand} isAgent={isAgent} />
-              ))}
-            </div>
+            <>
+              <div className="mb-6 flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-secondary/40 px-4 py-2.5 text-xs text-muted-foreground sm:justify-start">
+                <span>Vista previa como:</span>
+                <button
+                  onClick={() => setIsAgent(false)}
+                  className={cn(
+                    'rounded-md px-2.5 py-1 font-medium transition-colors',
+                    !isAgent ? 'bg-card text-foreground shadow-sm' : 'hover:text-foreground',
+                  )}
+                >
+                  Inquilino
+                </button>
+                <button
+                  onClick={() => setIsAgent(true)}
+                  className={cn(
+                    'rounded-md px-2.5 py-1 font-medium transition-colors',
+                    isAgent ? 'bg-card text-foreground shadow-sm' : 'hover:text-foreground',
+                  )}
+                >
+                  Propietario / Agente
+                </button>
+              </div>
+
+              {demandsError ? (
+                <EmptyState icon={TriangleAlert} message={demandsError.message} />
+              ) : demandsLoading ? (
+                <EmptyState icon={Loader2} message="Cargando el Muro de Demandas..." />
+              ) : demands.length === 0 ? (
+                <EmptyState icon={TriangleAlert} message="Aún no hay solicitudes en el Muro." />
+              ) : (
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {demands.map((demand) => (
+                    <DemandCard key={demand.id} demand={demand} isAgent={isAgent} />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
