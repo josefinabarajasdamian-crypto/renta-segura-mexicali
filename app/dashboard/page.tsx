@@ -376,7 +376,8 @@ export default function DashboardPage() {
                 </h2>
               </div>
               <p className="mb-3 text-sm text-muted-foreground">
-                Formatos listos para usar en tus arrendamientos, revisados y actualizados.
+                Plantillas de referencia para tus arrendamientos en Mexicali. Descárgalas y
+                complétalas para cada contrato.
               </p>
               <ContractTemplates />
             </section>
