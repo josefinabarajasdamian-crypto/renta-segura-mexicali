@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isAdminEmail } from '@/lib/admin'
 
 const PROTECTED_PATHS = ['/dashboard', '/propiedad/nueva', '/importar']
 
@@ -39,6 +40,17 @@ export async function middleware(request: NextRequest) {
     loginUrl.pathname = '/login'
     loginUrl.searchParams.set('redirect', request.nextUrl.pathname)
     return NextResponse.redirect(loginUrl)
+  }
+
+  // /dashboard/revision aprueba o descarta lo que llega de Facebook y
+  // puede disparar corridas de Apify (que cuestan presupuesto real) — no
+  // hay un rol "admin" en profiles, así que cualquier usuario logueado
+  // (propietario o agente) podía entrar. Se restringe a la lista de
+  // correos en NEXT_PUBLIC_ADMIN_EMAILS.
+  if (request.nextUrl.pathname.startsWith('/dashboard/revision') && !isAdminEmail(user?.email)) {
+    const dashboardUrl = request.nextUrl.clone()
+    dashboardUrl.pathname = '/dashboard'
+    return NextResponse.redirect(dashboardUrl)
   }
 
   return response
