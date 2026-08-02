@@ -463,3 +463,34 @@ select * from (values
 where not exists (
   select 1 from public.demands d where d.message = seed.message
 );
+
+-- ============================================================
+-- Tabla: tenant_reviews — calificaciones de inquilinos que un
+-- propietario/agente registra después de que termina un arrendamiento.
+-- Versión inicial simple: no hay un registro formal de "contratos" en el
+-- sistema todavía, así que esto es información que declara quien
+-- califica (no verificada contra un contrato real). tenant_identifier es
+-- lo que haya puesto el propietario (CURP o nombre) — la búsqueda en
+-- "Consultar Inquilino" hace un match de texto contra ese campo.
+-- ============================================================
+create table if not exists public.tenant_reviews (
+  id uuid primary key default gen_random_uuid(),
+  tenant_identifier text not null,
+  rating smallint not null check (rating between 1 and 5),
+  comment text,
+  reviewer_id uuid references auth.users(id) on delete set null,
+  contract_ended boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.tenant_reviews enable row level security;
+
+-- Solo usuarios logueados (propietarios/agentes) pueden buscar o
+-- registrar calificaciones — no es un directorio público.
+drop policy if exists "tenant_reviews_select_authenticated" on public.tenant_reviews;
+create policy "tenant_reviews_select_authenticated" on public.tenant_reviews
+  for select to authenticated using (true);
+
+drop policy if exists "tenant_reviews_insert_own" on public.tenant_reviews;
+create policy "tenant_reviews_insert_own" on public.tenant_reviews
+  for insert to authenticated with check (reviewer_id = auth.uid());
